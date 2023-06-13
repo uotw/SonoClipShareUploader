@@ -56,6 +56,7 @@ function createmainWindow(token, authWindow) {
   mainWindow = new BrowserWindow({
     width: 1100,
     height: mainWindowHeight,
+    backgroundColor: '#fff',
     webPreferences: {
       nodeIntegration: true,
       enableRemoteModule: true,
@@ -107,7 +108,8 @@ function createauthWindow() {
   var authService = new _AuthService2.default(getAuthConfig());
   var authWindow = new BrowserWindow({
     width: 1100,
-    height: 750
+    height: 750,
+    backgroundColor: '#fff',
   });
   authWindow.setResizable(false);
 
