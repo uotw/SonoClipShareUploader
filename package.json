@@ -1,0 +1,49 @@
+{
+  "name": "SonoClipShareUploader",
+  "version": "2.2.0",
+  "private": true,
+  "description": "De-Identify and upload your ultrasound clips to sonoclipshare.com",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "build --dir",
+    "dist-macarm": "electron-builder --arm64 --config ./build/buildarm.json",
+    "dist-mac64": "electron-builder --x64 --config ./build/buildmac.json",
+    "dist-win32": "electron-builder --ia32 --win --config ./build/buildwin.x86.json",
+    "dist-win64": "electron-builder --x64 --win --config ./build/buildwin.x64.json"
+  },
+  "keywords": [
+    "Electron"
+  ],
+  "author": "Ben C. Smith, MD, FACEP",
+  "license": "CC0-1.0",
+  "bugs": {
+    "url": "https://www.sonoclipshare.com/bugs"
+  },
+  "homepage": "https://www.sonoclipshare.com",
+  "devDependencies": {
+    "electron": "^25.1.0",
+    "electron-builder": "^24.4.0",
+    "electron-prebuilt": "^1.2.0"
+  },
+  "directories.bin": "node_modules/.bin/",
+  "dependencies": {
+    "@electron/remote": "^2.0.10",
+    "@ffmpeg-installer/darwin-x64": "^4.1.0",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffmpeg-installer/win32-ia32": "^4.1.0",
+    "@ffmpeg-installer/win32-x64": "^4.1.0",
+    "@ffprobe-installer/darwin-x64": "^5.1.0",
+    "@ffprobe-installer/ffprobe": "^2.0.0",
+    "@ffprobe-installer/win32-ia32": "^5.1.0",
+    "@ffprobe-installer/win32-x64": "^5.1.0",
+    "axios": "^0.24.0",
+    "cross-spawn": "^7.0.3",
+    "electron-store": "^8.1.0",
+    "form-data": "^4.0.0",
+    "jquery": "^3.5.1",
+    "request": "^2.87.0",
+    "request-promise": "^4.2.2"
+  },
+  "productName": "SonoClipShare Uploader"
+}

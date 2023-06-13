@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>SonoClipShare Uploader</title>
+	<!-- Auth0 Lock script -->
+
+<!-- Setting the right viewport -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<link rel="stylesheet" type="text/css" href="./css/style.css">
+<link rel="stylesheet" type="text/css" href="./css/flatbuttons.css">
+<link rel="stylesheet" type="text/css" href="./css/select.css">
+  </head>
+<body>
+ <div id="maintitle"><img src="./img/mainlogo.png" id="logo"></img><h1>SonoClipShare Uploader</h1></div>
+    <div id="profilestatus">
+      <img id="avatar" style="width: 75px; float: left;">
+      <h3 id="name"></h3>
+      <h3 id="email"></h3>
+    </div>
+
+	<div id="home"><img src="./img/home.png"></div>
+	<input type="submit" class="btn-login" />
+	<div id="filelistwrap">
+		<div id="addfilestatus"></div>
+		<div id="drag">Drop your clips and stills here</div>
+		<div id="filelist"></div>
+	</div>
+	<div id="loading-container">
+    		<div class="loading"></div>
+    		<div id="loading-text">Generating Previews</div>
+	</div>
+	<div id="progressmsg">de-identifying your scans</div>
+	<div id="myProgress">
+  		<div id="myBar">
+    			<div id="label">0%</div>
+  		</div>
+	</div>
+	<div id="progressmsgUL">uploading your scans</div>
+        <div id="myProgressUL">
+                <div id="myBarUL">
+                        <div id="labelUL">0%</div>
+                </div>
+        </div>
+	<div id="finallinkwrap">
+                <div>Click here to visit your archive and add comments</div>
+                <div id="finallink"></div>
+        </div>
+	<div id="addornew">
+		<div id="add">
+			<img id="addtoimg" src="./img/addtoarchive.png"></img>
+			<div id="addmessage">Add to an existing Archive</div>
+		</div>
+		<div id="or">Or</div>
+		<div id="new">
+			<img id="newimg" src = "./img/newarchive.png"></img>
+			<div id="newmessage">Create a new Archive</div>
+		</div>
+	</div>
+	<div id="addselect">
+		<div id="addselectmessage">Select one of your Archives</div>
+		<label id="lblSelect">
+		       <select id="myarchives" size="1">
+                                <option value="Select">Select</option>
+                       </select>
+		</label>
+		<div style="text-align:center;"><button id="okselect" class="btn btn-outlined btn-black btn-lg">OK</button></div>
+	</div>
+	<div id="newtitle">
+		<div id="newtitlemessage">Give your new Archive a title</div>
+		<input id="thetitle" maxlength="20"></input>
+		<div style="text-align:center;"><button id="oktitle" class="btn btn-outlined btn-black btn-lg">OK</button></div>
+	</div>
+	<div id="activefile"></div>
+	<div id="preview">
+		<div id="img-grid"></div>
+	</div>
+	<span id=version></span>
+	<button type="button" class="leftbtn btn btn-outlined btn-black btn-lg" id="clearbtn">Clear</button>
+	<button type="button" class=" rightbtn btn btn-outlined btn-black btn-lg" id="previewbtn">Next</button>
+	<button type="button" class="rightbtn btn btn-outlined btn-black btn-lg" id="cropbtn">Crop & Upload</button>
+	<button type="button" class="leftbtn btn btn-outlined btn-black btn-lg" id="manualbtn">Change Crop</button>
+	<button type="button" class="rightbtn btn btn-outlined btn-black btn-lg" id="manualOKbtn">OK</button>
+
+	<div id="canvaswrap"><canvas id="myCanvas" width="500" height="200"></canvas></div>
+	<div id="highlight"><span>click and drag what you want to keep</span></div>
+	<div id="confirm"><span>preview: confirm all patient info is removed</span></div>
+</body>
+  <script src='./js/cropselect.v2.js'></script>
+  <script src='./js/renderer.js'></script>
+  <script>
+    // // You can also require other files to run in this process
+    // require('./cropselect.js')
+    // require('./renderer.js')
+    // //window.$ = window.jQuery = window.jquery = require("./scripts/jquery.min.js");
+    // window.$ = window.jQuery = require('jquery');
+    // //window.$ = window.jQuery = require(./scripts/jquery.min.js);
+    // require('./renderer.js')
+    // //var $ = require('jQuery');
+    // //require('./chosen/chosen.jquery.min.js');
+    // //require('chosen-jquery-browserify');
+
+  </script>
+<script>if (typeof module === 'object') {window.module = module; module = undefined;}</script>
+<script>if (window.module) module = window.module; var $ = require('jQuery');</script>
+</html>
