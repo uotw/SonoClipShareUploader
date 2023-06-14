@@ -10,7 +10,7 @@
     "dist-macarm": "electron-builder --arm64 --config ./build/buildarm.json",
     "dist-mac64": "electron-builder --x64 --config ./build/buildmac.json",
     "dist-win32": "electron-builder --ia32 --win --config ./build/buildwin.x86.json",
-    "dist-win64": "electron-builder --x64 --win=portable --config ./build/buildwin.x64.json"
+    "dist-win64": "electron-builder --x64 --win --config ./build/buildwin.x64.json"
   },
   "keywords": [
     "Electron"
@@ -23,8 +23,7 @@
   "homepage": "https://www.sonoclipshare.com",
   "devDependencies": {
     "electron": "^25.1.0",
-    "electron-builder": "^24.4.0",
-    "electron-prebuilt": "^1.2.0"
+    "electron-builder": "^24.4.0"
   },
   "directories.bin": "node_modules/.bin/",
   "dependencies": {
