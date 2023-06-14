@@ -3,8 +3,8 @@ The purpose of SonoClipShareUploader is to take a ultrasound media in a traditio
 
 ## Install (v2.2.0)
 Download and install for your OS:
-- [Mac x64](https://d25ixnv6uinqzi.cloudfront.net/Anonymizer/SCS.installer.2.2.0.x64.dmg) (dmg, 141 MB)
-- [Mac arm64](https://d25ixnv6uinqzi.cloudfront.net/Anonymizer/SCS.installer.2.2.0.arm64.dmg) (dmg, 114 MB)
+- [Mac x64](https://d25ixnv6uinqzi.cloudfront.net/Anonymizer/SCS.installer.2.2.0.x64.dmg) (dmg, 109 MB)
+- [Mac arm64](https://d25ixnv6uinqzi.cloudfront.net/Anonymizer/SCS.installer.2.2.0.arm64.dmg) (dmg, 109 MB)
 - [Windows 64-bit](https://d25ixnv6uinqzi.cloudfront.net/Anonymizer/SCS_uploader.v2.2.0.x64.exe) (exe, 106MB)
 - [Windows 32-bit](https://d25ixnv6uinqzi.cloudfront.net/Anonymizer/SCS_uploader.v2.2.0.ia32.exe) (exe, 103MB)
 
