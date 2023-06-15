@@ -51,6 +51,7 @@ function getAuthConfig() {
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 var mainWindow = void 0;
+var authWindow;
 
 function createmainWindow(token, authWindow) {
   // Create the browser window.
@@ -108,7 +109,7 @@ function createmainWindow(token, authWindow) {
 function createauthWindow() {
 
   var authService = new _AuthService2.default(getAuthConfig());
-  var authWindow = new BrowserWindow({
+  authWindow = new BrowserWindow({
     width: 1100,
     height: 750,
     backgroundColor: '#fff',
@@ -145,50 +146,54 @@ function createauthWindow() {
 //app.on('ready', createmainWindow)
 app.on("ready", function() {
   createauthWindow();
-      var menu = Menu.buildFromTemplate([{
-        label: 'Menu',
-        submenu: [{
-                label: 'About',
-                click() {
-                    var aboutWindow = new BrowserWindow({
-                        width: 600,
-                        height: 400,
-                        'resizable': true,
-                        webPreferences: {
-                            nodeIntegration: true,
-                            contextIsolation: false,
-                            enableRemoteModule: true
-                        }
-                    });
-                    aboutWindow.loadURL(`file://${__dirname}/about.html`);
-                    //aboutWindow.webContents.openDevTools();
-                }
-            },
-            {
-                label: 'DevTools',
-                click() {
-                    mainWindow.webContents.openDevTools();
-                }
-            },
-            {
-                label: 'Reload',
-                click() {
-                    app.relaunch()
-                    app.exit()
-                }
-            },
-            {
-                type: 'separator'
-            },
-            {
-                label: 'Exit',
-                click() {
-                    app.quit()
-                }
+  var menu = Menu.buildFromTemplate([{
+    label: 'Menu',
+    submenu: [{
+        label: 'About',
+        click() {
+          var aboutWindow = new BrowserWindow({
+            width: 600,
+            height: 400,
+            'resizable': true,
+            webPreferences: {
+              nodeIntegration: true,
+              contextIsolation: false,
+              enableRemoteModule: true
             }
-        ]
-    }])
-    Menu.setApplicationMenu(menu);
+          });
+          aboutWindow.loadURL(`file://${__dirname}/about.html`);
+          //aboutWindow.webContents.openDevTools();
+        }
+      },
+      {
+        label: 'DevTools',
+        click() {
+          if (mainWindow) {
+            mainWindow.webContents.openDevTools();
+          } else if (authWindow) {
+            authWindow.webContents.openDevTools();
+          }
+        }
+      },
+      {
+        label: 'Reload',
+        click() {
+          app.relaunch()
+          app.exit()
+        }
+      },
+      {
+        type: 'separator'
+      },
+      {
+        label: 'Exit',
+        click() {
+          app.quit()
+        }
+      }
+    ]
+  }])
+  Menu.setApplicationMenu(menu);
 });
 
 // Quit when all windows are closed.
