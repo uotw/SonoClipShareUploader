@@ -1,3 +1,7 @@
+// const log =require('electron-log/renderer');
+// log.info('Log from the renderer process');
+// console.log = log.log;
+
 const ffmpeg = require('@ffmpeg-installer/ffmpeg');
 var ffmpegpath = ffmpeg.path;
 const ffprobe = require('@ffprobe-installer/ffprobe');
@@ -238,15 +242,25 @@ function queue(tasks) {
 	return runTask();
 }
 
+function sanitize(instring){
+	var outstring=instring;
+	for(i=0;i<filelist.length;i++){
+		outstring=outstring.replace(new RegExp(filelist[i], "g"), "FILENAME");
+	}
+	return outstring;
+
+}
 function customSpawn(command, args) {
 	return () => new Promise((resolve, reject) => {
-		console.log(command + args.join(" "));
+		// console.log(command + args.join(" "));
 		const child = spawn(command, args);
 		child.stdout.on('data', (data) => {
-			console.log(`stdout: ${data}`);
+			// console.log(`stdout: ${data}`);
 		});
 		child.stderr.on('data', (data) => {
-			console.log(command + args + `stderr: ${data}`);
+			// console.log(command + args + `stderr: ${data}`);
+			logdata=sanitize(`${data}`);
+			console.log("stderr: " + logdata);
 		});
 		child.on('close', code => {
 			if (code === 0) {
@@ -321,7 +335,7 @@ function progressUL(i) {
 		lastpercUL = stop;
 		if (i < croppedfilelist.length - 1) {
 			var filename = croppedfilelist[i + 1].replace(/^.*[\\\/]/, '')
-			console.log("uploading" + croppedfilelist[i + 1]);
+			// console.log("uploading" + croppedfilelist[i + 1]);
 			//$('#activefileUL').html(filename);
 		}
 		//resolve(i);
@@ -408,7 +422,7 @@ $('#cropbtn').click(function() { //SET UP CROPPING TASKS AND DO IT!
 	//for (var i = 0; i < myqueue.length; i++) { console.log(myqueue[i]);}
 	window.start = performance.now();
 	queue(myqueue).then(([cmd, args]) => {
-		console.log(cmd + ' finished - all finished');
+		// console.log(cmd + ' finished - all finished');
 	}).catch(function(error) {
 		// console.error(error.stack);
 	}); //.catch(TypeError, function(e) {}).catch(err => console.log(err));
@@ -425,7 +439,7 @@ $('#cropbtn').click(function() { //SET UP CROPPING TASKS AND DO IT!
 var form;
 
 function sendFiles(fileList, url) {
-	console.log(fileList, url);
+	// console.log(fileList, url);
 	return () => new Promise((resolve, reject) => {
 		form = new FormData();
 		for (i = 0; i < fileList.length; i++) {
@@ -448,7 +462,7 @@ function sendFiles(fileList, url) {
 
 			}
 		).then((response) => {
-			console.log(response.data); //.data.length);
+			// console.log(response.data); //.data.length);
 			resolve(1);
 		}).catch(error => {
 			console.log(error)
@@ -471,14 +485,14 @@ function upload() {
 
 		for (var i = 0; i < croppedfilelist.length; i += 3) {
 			var last = Math.min(croppedfilelist.length, i + 2);
-			console.log('last:' + last,croppedfilelist.length);
+			// console.log('last:' + last,croppedfilelist.length);
 			var uploadList = croppedfilelist.slice(i, last);
 			myqueue.push(sendFiles(uploadList, uploadlink));
 			myqueue.push(progressUL(last));
 		}
 		myqueue.push(progressend(1));
 		queue(myqueue).then(([cmd, args]) => {
-			console.log(cmd + ' finished - all finished');
+			// console.log(cmd + ' finished - all finished');
 		}).catch(function(error) {
 			console.error(error.stack);
 		});
@@ -580,7 +594,7 @@ function preview() {
 	$('#previewsizetext').show();
 	myqueue.push(showbtns());
 	queue(myqueue).then(([cmd, args]) => {
-		console.log(cmd + ' finished - all finished');
+		// console.log(cmd + ' finished - all finished');
 	}).catch(TypeError, function(e) {}).catch(err => console.log(err));
 }
 
@@ -665,7 +679,7 @@ function addfilestatus() {
 $('#add').click(function() {
 	$('#finallinkwrap').hide();
 	$('#addornew').hide();
-	console.log('trying to load');
+	// console.log('trying to load');
 	loadmyarchives();
 });
 

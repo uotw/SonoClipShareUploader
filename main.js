@@ -25,6 +25,11 @@ const {
   Menu
 } = require('electron')
 
+
+// const log = require('electron-log');
+// log.initialize({ spyRendererConsole: true});
+// log.info('Hello, log');
+
 // const Menu = electron.Menu
 require('@electron/remote/main').initialize()
 
