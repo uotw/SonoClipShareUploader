@@ -484,11 +484,12 @@ function upload() {
 		var cookie = path.join(workdir,'cookie');
 
 		for (var i = 0; i < croppedfilelist.length; i += 3) {
-			var last = Math.min(croppedfilelist.length, i + 2);
-			// console.log('last:' + last,croppedfilelist.length);
+			var last = Math.min(croppedfilelist.length, i + 3);
+			console.log('last:' + last,croppedfilelist.length);
 			var uploadList = croppedfilelist.slice(i, last);
+			var lastProg = Math.min(croppedfilelist.length, i + 2);
 			myqueue.push(sendFiles(uploadList, uploadlink));
-			myqueue.push(progressUL(last));
+			myqueue.push(progressUL(lastProg));
 		}
 		myqueue.push(progressend(1));
 		queue(myqueue).then(([cmd, args]) => {
