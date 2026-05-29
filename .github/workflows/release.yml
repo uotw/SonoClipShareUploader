@@ -12,6 +12,11 @@ permissions:
 jobs:
   mac:
     runs-on: macos-latest
+    # Copy node_modules into the app instead of hardlinking — otherwise the x64
+    # ffmpeg swap below would mutate files already sealed inside the signed
+    # arm64 bundle and break its code signature ("sealed resource is invalid").
+    env:
+      USE_HARD_LINKS: "false"
     steps:
       - uses: actions/checkout@v4
 
