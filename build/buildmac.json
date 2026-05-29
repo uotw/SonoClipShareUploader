@@ -1,21 +1,27 @@
 {
-    "files": [
-      "!**/@ffmpeg-installer/win32-ia32${/*}", 
-      "!**/@ffmpeg-installer/darwin-arm64${/*}",
-      "!**/@ffmpeg-installer/win32-x64${/*}",
-      "!**/@ffprobe-installer/win32-x64${/*}",
-      "!**/@ffprobe-installer/win32-ia32${/*}", 
-      "!**/@ffprobe-installer/darwin-arm64${/*}",
-    ],
-    "asar": false,
-    "appId": "SonoClipShareUploader",
-    "mac": {
-      "hardenedRuntime": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "gatekeeperAssess": false,
-      "category": "public.app-category.developer-tools",
-      "target": "dir"
+  "appId": "com.sonoclipshare.uploader",
+  "productName": "SonoClipShare Uploader",
+  "asar": false,
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "**/*",
+    "!**/node_modules/ffprobe-static/bin/linux/**/*",
+    "!**/node_modules/ffprobe-static/bin/win32/**/*",
+    "!**/node_modules/ffprobe-static/bin/darwin/arm64/**/*"
+  ],
+  "mac": {
+    "artifactName": "${productName}-${version}-x64.${ext}",
+    "hardenedRuntime": true,
+    "entitlements": "entitlements.mac.plist",
+    "entitlementsInherit": "entitlements.mac.plist",
+    "gatekeeperAssess": false,
+    "identity": "Core Ultrasound, LLC (6VK3JZ7LRU)",
+    "notarize": false,
+    "target": {
+      "target": "dmg",
+      "arch": "x64"
     }
-
+  }
 }

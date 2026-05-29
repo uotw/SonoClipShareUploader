@@ -6,17 +6,13 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _request = require('request');
+var _axios = require('axios');
 
-var _request2 = _interopRequireDefault(_request);
+var _axios2 = _interopRequireDefault(_axios);
 
 var _crypto = require('crypto');
 
 var _crypto2 = _interopRequireDefault(_crypto);
-
-var _requestPromise = require('request-promise');
-
-var _requestPromise2 = _interopRequireDefault(_requestPromise);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -51,19 +47,42 @@ var AuthService = function () {
 
                         var _verifier = _this.challengePair.verifier;
                         var options = _this.getTokenPostRequest(authCode, _verifier);
-                        //console.log(options);
+                        
+                        // Convert request-promise options to axios format
+                        var axiosConfig = {
+                            method: options.method,
+                            url: options.url,
+                            headers: options.headers,
+                            data: JSON.parse(options.body),
+                            timeout: 30000
+                        };
 
-                        return (0, _requestPromise2.default)(options).then(function (response) {
-                            //TODO: return / store access code,
-                            //remove console.log, meant for demonstration purposes only
-                            //console.log('access token.response: ' + JSON.stringify(response));
-                            createmainWindow(response, authWindow);
-                            // global.responsecode = {theresponse: response};
-                            //return(response);
-                            //localStorage.setItem('id_token', response.idToken);
-                            //localStorage.setItem('profile', JSON.stringify(profile));
+                        console.log('Making token request to:', options.url);
+                        console.log('Request data:', JSON.parse(options.body));
+
+                        return (0, _axios2.default)(axiosConfig).then(function (response) {
+                            console.log('Auth response received:', response.data);
+                            console.log('Response keys:', Object.keys(response.data));
+                            
+                            // Check if we have an id_token or access_token
+                            if (response.data.id_token) {
+                                console.log('Found id_token, length:', response.data.id_token.length);
+                            } else if (response.data.access_token) {
+                                console.log('Found access_token, length:', response.data.access_token.length);
+                                // Some Auth0 configurations return access_token instead of id_token
+                                response.data.id_token = response.data.access_token;
+                            } else {
+                                console.log('No id_token or access_token found in response');
+                            }
+                            
+                            createmainWindow(JSON.stringify(response.data), authWindow);
                         }).catch(function (err) {
-                            if (err) throw new Error(err);
+                            console.error('Auth service error:', err.message);
+                            if (err.response) {
+                                console.error('Response data:', err.response.data);
+                                console.error('Response status:', err.response.status);
+                            }
+                            reject(new Error(err.message || 'Authentication failed'));
                         });
                     } else {
                         reject('Could not parse the authorization code');
@@ -76,7 +95,6 @@ var AuthService = function () {
     }, {
         key: 'getAuthoriseUrl',
         value: function getAuthoriseUrl(challengePair) {
-            //return `${this.config.authorizeEndpoint}?audience=${this.config.audience}&scope=${this.config.scope}&response_type=code&client_id=${this.config.clientId}&code_challenge=${challengePair.challenge}&code_challenge_method=S256&redirect_uri=${this.config.redirectUri}`
             return this.config.authorizeEndpoint + '?scope=' + this.config.scope + '&response_type=code&client_id=' + this.config.clientId + '&code_challenge=' + challengePair.challenge + '&code_challenge_method=S256&redirect_uri=' + this.config.redirectUri;
         }
     }, {
@@ -86,7 +104,7 @@ var AuthService = function () {
                 method: 'POST',
                 url: this.config.tokenEndpoint,
                 headers: { 'content-type': 'application/json' },
-                body: '{"grant_type":"authorization_code",\n              "client_id": "' + this.config.clientId + '",\n              "code_verifier": "' + verifier + '",\n              "code": "' + authCode + '",\n              "redirect_uri":"' + this.config.redirectUri + '"\n            }'
+                body: '{"grant_type":"authorization_code","client_id": "' + this.config.clientId + '","code_verifier": "' + verifier + '","code": "' + authCode + '","redirect_uri":"' + this.config.redirectUri + '"}'
             };
         }
     }, {
@@ -104,7 +122,6 @@ var AuthService = function () {
     }, {
         key: 'getParameterByName',
         value: function getParameterByName(name, url) {
-
             name = name.replace(/[\[\]]/g, "\\$&");
             var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
                 results = regex.exec(url);
@@ -115,7 +132,6 @@ var AuthService = function () {
     }, {
         key: 'base64URLEncode',
         value: function base64URLEncode(str) {
-
             return str.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
         }
     }, {

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background: radial-gradient(#40404b, #111118);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, sans-serif;
+            color: white;
+            text-rendering: optimizeLegibility;
+            font-weight: 300;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .banner {
+            text-align: center;
+            pointer-events: auto;
+            box-sizing: initial;
+            padding: 0 10px;
+        }
+        
+        .banner h2 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-family: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, sans-serif;
+            font-weight: 300;
+            text-rendering: optimizeLegibility;
+            text-align: center;
+            color: white;
+            line-height: 30px;
+            padding: 0 10px;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        
+        .banner p {
+            margin: 0;
+            opacity: 0.8;
+            font-family: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, sans-serif;
+            font-weight: 300;
+            text-rendering: optimizeLegibility;
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            font-size: 18px;
+            line-height: 30px;
+            padding: 0 10px;
+            box-sizing: initial;
+        }
+    </style>
+</head>
+<body>
+    <div class="spinner"></div>
+    <div class="banner">
+        <h2>SonoClipShare Uploader</h2>
+        <p>Loading authentication...</p>
+    </div>
+</body>
+</html>

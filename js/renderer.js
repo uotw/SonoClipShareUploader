@@ -1,26 +1,24 @@
-// const log =require('electron-log/renderer');
-// log.info('Log from the renderer process');
-// console.log = log.log;
+// Complete Electron renderer with smooth de-identification progress bars
+const $ = window.jQuery = window.$ = require('jquery');
 
-const ffmpeg = require('@ffmpeg-installer/ffmpeg');
-var ffmpegpath = ffmpeg.path;
-const ffprobe = require('@ffprobe-installer/ffprobe');
-var ffprobepath = ffprobe.path;
+// Test that jQuery loaded
+console.log('jQuery version:', $.fn.jquery);
+
+const FFmpegWrapper = require('./js/ffmpeg-wrapper');
+const ffmpeg = new FFmpegWrapper();
+window.ffmpeg = ffmpeg;
+
 var remote = require('@electron/remote')
 const {
 	ipcRenderer
 } = require('electron')
 var version = remote.app.getVersion();
-var $ = window.$ = window.jQuery = require('jquery');
 const os = require('os');
 const ostemp = os.tmpdir()
-var request = require('request');
-var axios = require('axios');
 var FormData = require('form-data');
 
 const Store = require('electron-store');
 const store = new Store();
-const arch = os.arch();
 
 if (store.get('cropWidth')) {
     window.cropW = store.get('cropWidth');
@@ -32,8 +30,6 @@ if (store.get('cropWidth')) {
 const {
 	shell
 } = require('electron');
-const spawn = require('cross-spawn');
-const spawnsync = spawn.sync;
 
 var filelist = [];
 var widtharr = [];
@@ -41,14 +37,21 @@ var heightarr = [];
 var croppixelarr = [];
 var canvasaspect;
 var path = require('path');
-workdir = path.join(ostemp,maketemp())
+workdir = path.join(ostemp,maketemp());
 remote.getGlobal('workdirObj').prop1 = workdir;
+
 var id_token = remote.getGlobal('token').thetoken;
+console.log('Initial token check:', id_token ? 'Token available' : 'Token is null');
+
+function checkToken() {
+    id_token = remote.getGlobal('token').thetoken;
+    console.log('Token check:', id_token ? 'Valid' : 'Still null');
+    return id_token;
+}
 
 console.log('tempdir: ' + remote.getGlobal('workdirObj').prop1);
 var previewfile = path.join(workdir,'preview.png');
 previewfile=previewfile.split(path.sep).join(path.posix.sep);
-//var previewfile=previewfile.split(path.sep).join(path.win32.sep);
 var previewindex = 0;
 var lastperc = 0;
 var lastpercUL = 0;
@@ -58,11 +61,25 @@ var croppedfilelist = [];
 var title, folder, finallink;
 var ispreviewclip = 1;
 window.croppixelperc = 0.09;
-// const spawn = require('child_process').spawn;
-//const spawnsync = require('child_process').spawnSync;
+var uploadBatchId = null;
 
-// ************ AXIOS START ************ //
-// AXIOS END
+// Two independent progress controllers, shown simultaneously:
+//   cropController     → #myBar/#label    (de-identification / transcode)
+//   progressController  → #myBarUL/#labelUL (upload)
+let cropController = null;
+let progressController = null;
+
+// Warm up the ffmpeg/ffprobe binaries at app launch so the first encode is snappy.
+$(document).ready(function() {
+    console.log('Warming up FFmpeg binaries...');
+
+    ffmpeg.warmupBinaries()
+        .then(() => console.log('FFmpeg binaries ready (CPU/libx264 encoding)'))
+        .catch((error) => console.warn('Binary warmup failed (non-critical):', error));
+
+    init();
+});
+
 function maketemp() {
 	var text = "";
 	var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -70,17 +87,6 @@ function maketemp() {
 	return text;
 }
 
-function run_cmd(cmd, args, callBack) {
-	var spawn = require('child_process').spawn;
-	var child = spawn(cmd, args);
-	var resp = "";
-	child.stdout.on('data', function(buffer) {
-		resp += buffer.toString()
-	});
-	child.stdout.on('end', function() {
-		callBack(resp)
-	});
-} // ()
 function isclip(filename) {
 	var clipext = ['mp4', 'm4v', 'avi', 'wmv', 'mov', 'flv', 'mpg', 'mpeg'];
 	for (var i = 0; i < clipext.length; i++) {
@@ -113,7 +119,7 @@ function search(startPath) {
 		var stat = fs.lstatSync(filename);
 		if (stat.isDirectory()) {
 			var list_temp = [];
-			list_temp = search(filename); //recurse
+			list_temp = search(filename);
 			for (var m = 0; m < list_temp.length; m++) {
 				list.push(list_temp[m]);
 			}
@@ -123,8 +129,10 @@ function search(startPath) {
 	}
 	return (list);
 }
+
 $('#version').html(version);
-//allow drop on dahsed area
+
+// File drop handling
 $("#filelistwrap").on('dragenter', function(event) {
 	event.stopPropagation();
 	event.preventDefault();
@@ -134,17 +142,17 @@ $("#filelistwrap").on('dragover', function(event) {
 	event.preventDefault();
 });
 $("#filelistwrap").on('drop', function(event) {
-	// spawn(appswitchpath, ['-p', pid]);
 	ipcRenderer.send('focusnow', 'focus')
 	event.preventDefault();
-	var path = require('path');
 	var files = event.originalEvent.dataTransfer.files;
+	
 	for (var i = 0; i < files.length; i++) {
-		name = files[i].name;
-		path = files[i].path;
-		if (fs.lstatSync(path).isDirectory()) {
+		var name = files[i].name;
+		var filePath = files[i].path;
+		
+		if (fs.lstatSync(filePath).isDirectory()) {
 			var temp_list = [];
-			temp_list = search(path);
+			temp_list = search(filePath);
 			for (var k = 0; k < temp_list.length; k++) {
 				if (filelist.indexOf(temp_list[k]) == -1) {
 					filelist.push(temp_list[k]);
@@ -153,18 +161,20 @@ $("#filelistwrap").on('drop', function(event) {
 				}
 			}
 		} else if (isstill(name) || isclip(name)) {
-			if (filelist.indexOf(path) == -1) {
-				filelist.push(path);
+			if (filelist.indexOf(filePath) == -1) {
+				filelist.push(filePath);
 				var index = filelist.length;
-				$('#filelist').append(index + ': ' + path + '<br />');
+				$('#filelist').append(index + ': ' + filePath + '<br />');
 			}
 		}
 	}
+	
 	addfilestatus();
 	$('#previewbtn').fadeIn();
 	$('#clearbtn').fadeIn();
 	$('#drag').css('visibility', 'hidden');
 });
+
 $('#clearbtn').click(function() {
 	filelist = [];
 	$('#filelist').html('');
@@ -173,7 +183,7 @@ $('#clearbtn').click(function() {
 	$('#drag').css('visibility', 'visible');
 	addfilestatus();
 });
-//prevent ‘drop’ event on document.
+
 $(document).on('dragenter', function(e) {
 	e.stopPropagation();
 	e.preventDefault();
@@ -188,13 +198,23 @@ $(document).on('drop', function(e) {
 });
 
 function canvasbg(filelist) {
-        ffmpegBG = spawnsync(ffmpegpath, ['-i', filelist[0], '-an', '-vf', 'scale=500:-1', '-pix_fmt', 'rgb24', '-vframes', '1', '-f', 'image2', '-map_metadata', '-1', '-y', previewfile]);
-        ffprobeBG = spawnsync(ffprobepath, ['-print_format', 'json', '-show_streams', '-i', filelist[0]]);
-    	ffprobeOb = JSON.parse(ffprobeBG.stdout);
-    return (ffprobeOb);
-
+    return new Promise((resolve, reject) => {
+        const outputPath = previewfile;
+        
+        ffmpeg.createCanvasBackground(filelist[0], outputPath)
+            .then(() => {
+                return ffmpeg.probe(filelist[0]);
+            })
+            .then((metadata) => {
+                resolve(metadata);
+            })
+            .catch((err) => {
+                reject(err);
+            });
+    });
 }
-$('#previewbtn').click(function() { //Generate page of 9% cropped thumbnails to preview
+
+$('#previewbtn').click(function() {
 	if (!fs.existsSync(workdir)) {
 		fs.mkdirSync(workdir);
 	}
@@ -221,13 +241,11 @@ function showbtns() {
 }
 
 function setcropvars() {
-    //console.log(window.cropW, window.cropH, window.cropX, window.cropY);
     store.set('cropWidth', window.cropW);
     store.set('cropHeight', window.cropH);
     store.set('cropXstart', window.cropX);
     store.set('cropYstart', window.cropY);
 }
-
 
 function queue(tasks) {
 	let index = 0;
@@ -242,278 +260,321 @@ function queue(tasks) {
 	return runTask();
 }
 
-function sanitize(instring){
-	var outstring=instring;
-	for(i=0;i<filelist.length;i++){
-		outstring=outstring.replace(new RegExp(filelist[i], "g"), "FILENAME");
-	}
-	return outstring;
+// Progress controller bound to a specific bar + label element.
+// The bar width is animated by a CSS transition (smooth + GPU-friendly); the
+// % label is hidden below 5% so a bar never shows a lonely "0%".
+function createSmoothProgress(barId, labelId) {
+    let value = 0;
 
+    // animate=true → let the CSS width transition glide; false → snap instantly.
+    const render = (animate) => {
+        const elem = document.getElementById(barId);
+        const label = document.getElementById(labelId);
+        if (elem) {
+            if (!animate) {
+                elem.style.transition = 'none';
+                elem.style.width = value + '%';
+                void elem.offsetWidth;        // flush so the next change animates again
+                elem.style.transition = '';
+            } else {
+                elem.style.width = value + '%';
+            }
+            if (value >= 100) { elem.classList.add('progress-complete'); }
+        }
+        if (label) { label.innerHTML = value >= 5 ? Math.round(value) + '%' : ''; }
+    };
+
+    return {
+        setProgress: (percent) => { value = Math.max(0, Math.min(100, percent)); render(true); },
+        stop: () => {},
+        getCurrentProgress: () => value,
+        isAnimating: () => false,
+        reset: () => { value = 0; render(false); },
+        // Hard snap to a value with NO animation (used at phase transitions).
+        jump: (percent) => { value = Math.max(0, Math.min(100, percent)); render(false); }
+    };
 }
-function customSpawn(command, args) {
-	return () => new Promise((resolve, reject) => {
-		// console.log(command + args.join(" "));
-		const child = spawn(command, args);
-		child.stdout.on('data', (data) => {
-			// console.log(`stdout: ${data}`);
-		});
-		child.stderr.on('data', (data) => {
-			// console.log(command + args + `stderr: ${data}`);
-			logdata=sanitize(`${data}`);
-			console.log("stderr: " + logdata);
-		});
-		child.on('close', code => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject();
-			}
-		});
-	});
-}
 
-function progress(i) {
-	return () => new Promise((resolve, reject) => {
-		stop = Math.round(100 * (i + 1) / filelist.length);
-		var elem = document.getElementById("myBar");
-		start = lastperc;
-		var width = start;
-		//$('#myBar').animate({width:stop+'%'});
-		var id = setInterval(frame, 2);
+// POST one job (a clip's mp4+thumbnail, or one still) to uploadapp4.php.
+// Files are named "<NNN>_<basename>" (NNN = seqStart+i+1) to match the server's
+// prefix-based ordering. Resolves with the parsed JSON on success.
+function postFilesToServer(files, uploadlink, seqStart) {
+	return new Promise(function(resolve, reject) {
+		var form = new FormData();
+		for (var i = 0; i < files.length; i++) {
+			var thisfile = fs.readFileSync(files[i]);
+			var nameonly = path.basename(files[i]);
+			var seq = seqStart + i + 1;
+			form.append('file[]', thisfile, String(seq).padStart(3, '0') + '_' + nameonly);
+		}
 
-		function frame() {
-			if (width >= stop) {
-				clearInterval(id);
-				resolve(i);
-				if (i + 1 == croppedfilelist.length) {
-					elem.style.width = "100%";
-					$('#myBar').css('width', '100%');
-					document.getElementById("label").innerHTML = "100%";
-					$('#activefile').hide();
-					$('#myProgressUL').show();
-					$('#progressmsgUL').show();
-					$('#progressmsg').hide();
-					$('#myProgress').hide();
-					lastperc = 0;
+		const https = require('https');
+		const http = require('http');
+		const url = require('url');
+		const parsedUrl = url.parse(uploadlink);
+		const isHttps = parsedUrl.protocol === 'https:';
+		const httpModule = isHttps ? https : http;
+		const formData = form.getBuffer();
+		const formHeaders = form.getHeaders();
+		const options = {
+			hostname: parsedUrl.hostname,
+			port: parsedUrl.port || (isHttps ? 443 : 80),
+			path: parsedUrl.path,
+			method: 'POST',
+			headers: { ...formHeaders, 'Content-Length': formData.length },
+			timeout: 120000
+		};
+
+		const req = httpModule.request(options, function(res) {
+			let responseData = '';
+			res.on('data', function(c) { responseData += c; });
+			res.on('end', function() {
+				try {
+					const data = JSON.parse(responseData);
+					if (data.status === 'success') {
+						resolve(data);
+					} else {
+						console.error('Server rejected upload | HTTP ' + res.statusCode + ' | response:', responseData);
+						reject(new Error(data.message || 'Upload failed'));
+					}
+				} catch (e) {
+					console.error('Non-JSON server response | HTTP ' + res.statusCode + ' | body:', responseData);
+					reject(new Error('Invalid server response (HTTP ' + res.statusCode + ')'));
 				}
-			} else {
-				width++;
-				elem.style.width = width + '%';
-				document.getElementById("label").innerHTML = width * 1 + '%';
-			}
-		}
-		lastperc = stop;
-		if (i < filelist.length - 1) {
-			var filename = filelist[i + 1].replace(/^.*[\\\/]/, '')
-			$('#activefile').html(filename);
-		}
+			});
+		});
+		req.on('error', function(e) { reject(e); });
+		req.on('timeout', function() { req.destroy(); reject(new Error('Upload timeout')); });
+		req.write(formData);
+		req.end();
 	});
 }
 
-function progressUL(i) {
+function progressend(uploadResponse) {
 	return () => new Promise((resolve, reject) => {
-		stop = Math.round(100 * (i + 1) / croppedfilelist.length);
-		var elem = document.getElementById("myBarUL");
-		start = lastpercUL;
-		var width = start;
-		//$('#myBar').animate({width:stop+'%'});
-		var id = setInterval(frame, 1);
+		if (cropController) { cropController.stop(); }
+		if (progressController) { progressController.stop(); }
 
-		function frame() {
-			if (width >= stop) {
-				if (i + 1 == croppedfilelist.length) {
-					lastpercUL = 0;
-				}
-				clearInterval(id);
-				resolve(i);
-			} else {
-				width++;
-				elem.style.width = width + '%';
-				document.getElementById("labelUL").innerHTML = width * 1 + '%';
-			}
-		}
-		lastpercUL = stop;
-		if (i < croppedfilelist.length - 1) {
-			var filename = croppedfilelist[i + 1].replace(/^.*[\\\/]/, '')
-			// console.log("uploading" + croppedfilelist[i + 1]);
-			//$('#activefileUL').html(filename);
-		}
-		//resolve(i);
-	});
-}
-
-function progressend(i) {
-	return () => new Promise((resolve, reject) => {
+		$('#myProgress').hide();
+		$('#progressmsg').hide();
 		$('#myProgressUL').hide();
 		$('#progressmsgUL').hide();
-		$('#finallink').html(finallink);
-		//$('#finallink').attr('href',finallink);
-		$('#finallinkwrap').fadeIn();
-		$('#addornew').fadeIn();
+		
+		if (uploadResponse.status === 'success') {
+			finallink = 'https://www.sonoclipshare.com/archive.php?&f=' + uploadResponse.upload_id;
+			$('#finallink').html(finallink);
+			$('#finallinkwrap').fadeIn();
+			$('#addornew').fadeIn();
+		} else {
+			$('#uploaderrors').html('Upload failed: ' + uploadResponse.message);
+			$('#uploaderrors').show();
+		}
 
 		filelist = [];
 		$('#filelist').html('');
 		$('#drag').css('visibility', 'visible');
 		addfilestatus();
 		$('#home').fadeIn();
-		$('#myBar').css('width', '0');
-		document.getElementById("label").innerHTML = "0%";
+		
+		// Reset progress bar
 		$('#myBarUL').css('width', '0');
 		document.getElementById("labelUL").innerHTML = "0%";
+		
 		window.end = performance.now();
-		// console.log("Call to doSomething took " + (window.end - window.start) + " milliseconds.")
-
-		//console.log('finished');
-		resolve(i);
+		console.log("Total time: " + (window.end - window.start) + " milliseconds.");
+		resolve();
 	});
 }
+
 $('#finallink').click(function() {
 	var ssolink = finallink;
-	//var ssolink = 'https://ultrasoundjelly.auth0.com/authorize?response_type=code&client_id=Ei2ZzdG8T1pSHElwiIsZgTS6zY0vemv6&redirect_uri=' + encodeURIComponent(finallink);
-
-	//https://www.sonoclipshare.com/myarchives.php&showSignup=false';
 	shell.openExternal(ssolink);
 });
-$('#cropbtn').click(function() { //SET UP CROPPING TASKS AND DO IT!
+
+// UPDATED: Crop button with unified progress
+$('#cropbtn').click(function() {
+	console.log('CROP BUTTON CLICKED - Starting pipelined de-id + upload');
+
 	$('#confirm').hide();
 	$('#home').hide();
-	var myqueue = [];
-	croppedfilelist = [];
-	$('#myProgress').show();
 	$('#preview').hide();
 	$(this).hide();
 	$('#manualbtn').hide();
-	$('#progressmsg').show();
+	croppedfilelist = [];
+
+	// Auth token required for upload
+	var currentToken = checkToken();
+	if (!currentToken) {
+		$('#uploaderrors').html('No authentication token. Please restart the app and log in again.').show();
+		return;
+	}
+
+	// Build the upload URL once
+	finallink = 'https://www.sonoclipshare.com/archive.php?&f=' + folder;
+	var encodedTitle = title ? encodeURIComponent(title) : null;
+	var uploadlink = encodedTitle
+		? 'https://www.sonoclipshare.com/uploadapp4.php?&token=' + currentToken + '&t=' + encodedTitle + '&f=' + folder
+		: 'https://www.sonoclipshare.com/uploadapp4.php?&f=' + folder + '&token=' + currentToken;
+	console.log('Upload target:', (title ? 'NEW archive' : 'existing archive'), '| folder:', folder, '| clips:', filelist.length);
+
+	// Show BOTH progress bars (de-id + upload) at once
+	$('#progressmsg').html('① De-identifying scans (cropping + removing metadata)').show();
+	$('#myProgress').removeClass('crop-complete').show();
+	$('#progressmsgUL').html('② Uploading to SonoClipShare').show();
+	$('#myProgressUL').removeClass('deidentifying progress-complete').addClass('uploading').show();
 	$('#activefile').show();
-	var filename = filelist[0].replace(/^.*[\\\/]/, '')
-	$('#activefile').html(filename);
-	//BUILD CROP AND DIM ARRAY
-	for (var i = 0; i < filelist.length; i++) {
-		nexti = i + 1;
-		var croppath = path.dirname(filelist[i]);
-	        //console.log("PATH: " + croppath);
-	        var basename = path.basename(filelist[i]);
-	        var ext = basename.split('.');
-	        ext = '.' + ext[ext.length - 1];
-	        basename = path.basename(filelist[i], ext);
-	        var croppixel = croppixelarr[i];
-		if (!window.cropW) {
-	            var cropvftext = 'setsar=1,scale=trunc(iw/2)*2:trunc(ih/2)*2,crop=in_w:in_h-' + croppixel + ':0:' + croppixel;
-	        } else {
-	            var cropWidth = Math.round(widtharr[i] * window.cropW);
-	            var cropHeight = Math.round(heightarr[i] * window.cropH);
-	            var cropXstart = Math.round(widtharr[i] * window.cropX);
-	            var cropYstart = Math.round(heightarr[i] * window.cropY);
-	            var cropvftext = 'setsar=1,scale=trunc(iw/2)*2:trunc(ih/2)*2,crop=' + cropWidth + ':' + cropHeight + ':' + cropXstart + ':' + cropYstart;
-	        }
-	        if (isclip(filelist[i])) {
-	            var outfile = path.join(workdir, nexti + '.mp4');
-	            myqueue.push(customSpawn(ffmpegpath, ['-i', filelist[i], '-an', '-map_metadata', '-1', '-vf', cropvftext, '-c:v', 'libx264', '-preset', 'medium', '-crf', '14', '-y', '-pix_fmt', 'yuv420p', outfile]));
-	        } else {
-	            var outfile = path.join(workdir, nexti + '.png');
-	            myqueue.push(customSpawn(ffmpegpath, ['-i', filelist[i], '-map_metadata', '-1', '-vf', cropvftext, '-f', 'image2', '-y', '-pix_fmt', 'rgb24', outfile]));
-	        }
-	        croppedfilelist.push(outfile);
-		myqueue.push(progress(i));
+	cropController = createSmoothProgress('myBar', 'label');
+	progressController = createSmoothProgress('myBarUL', 'labelUL');
+	cropController.jump(0);
+	progressController.jump(0);
+
+	// Totals: cropping measured in source clips; upload measured in output files
+	var totalSources = filelist.length;
+	var totalOutputs = 0;
+	for (var t = 0; t < filelist.length; t++) { totalOutputs += isclip(filelist[t]) ? 2 : 1; }
+	var transcodedSources = 0;
+	var uploadedOutputs = 0;
+	var uploadSeq = 0;
+	var pipelineError = null;
+
+	// ---- upload consumer: first job alone (creates archive), then N-parallel ----
+	var UPLOAD_CONCURRENCY = 4;
+	var jobQueue = [];
+	var activeUploads = 0;
+	var transcodeDone = false;
+	var archiveCreated = false;
+	var finished = false;
+
+	function fail(err) {
+		if (pipelineError) return;
+		pipelineError = err;
+		console.error('Pipeline error:', err);
+		var msg = (err && err.message) ? err.message : String(err);
+		$('#progressmsgUL').html('Upload failed: ' + msg);
+		var bar = document.getElementById('myBarUL');
+		if (bar) { bar.style.backgroundColor = '#ff4444'; }
+		$('#uploaderrors').html('Upload failed: ' + msg).show();
 	}
-	//myqueue.push(console.log(croppedfilelist));
-	myqueue.push(upload(i)); //LAST ITEM IN QUEUE, CALL UPLOAD QUEUE
-	//myqueue.push(progressend(i));
-	//for (var i = 0; i < myqueue.length; i++) { console.log(myqueue[i]);}
-	window.start = performance.now();
-	queue(myqueue).then(([cmd, args]) => {
-		// console.log(cmd + ' finished - all finished');
-	}).catch(function(error) {
-		// console.error(error.stack);
-	}); //.catch(TypeError, function(e) {}).catch(err => console.log(err));
-	//DELETE PREVIEWS
-	for (var j = 1; j < previewindex + 1; j++) {
-		for (var i = 0; i < filelist.length; i++) {
+
+	function maybeFinish() {
+		if (finished || pipelineError) return;
+		if (transcodeDone && jobQueue.length === 0 && activeUploads === 0) {
+			finished = true;
+			cropController.setProgress(100);
+			progressController.setProgress(100);
+			$('#activefile').hide();
+			$('#progressmsgUL').html('✓ Upload complete');
+			// fill animates to 100, then fade to green
+			setTimeout(function() { $('#myProgressUL').removeClass('uploading').addClass('progress-complete'); }, 320);
+			// Let the 100% + green state stay visible before showing the archive link
+			setTimeout(function() {
+				progressend({ status: 'success', upload_id: folder, processed_files: totalOutputs, files: [], errors: [] })();
+			}, 1500);
+		}
+	}
+
+	function runJob(job, isFirst) {
+		activeUploads++;
+		var startSeq = uploadSeq;
+		uploadSeq += job.length;
+		postFilesToServer(job, uploadlink, startSeq)
+			.then(function() {
+				uploadedOutputs += job.length;
+				progressController.setProgress(Math.min(100, uploadedOutputs / totalOutputs * 100));
+				job.forEach(function(f) { try { if (fs.existsSync(f)) { fs.unlink(f, function() {}); } } catch (e) {} });
+				activeUploads--;
+				if (isFirst) { archiveCreated = true; }
+				pump();
+				maybeFinish();
+			})
+			.catch(function(err) {
+				activeUploads--;
+				fail(err);
+			});
+	}
+
+	function pump() {
+		if (pipelineError) return;
+		if (!archiveCreated) {
+			// Serialize the first upload so the archive is created exactly once
+			if (activeUploads === 0 && jobQueue.length > 0) { runJob(jobQueue.shift(), true); }
+			return;
+		}
+		while (activeUploads < UPLOAD_CONCURRENCY && jobQueue.length > 0) {
+			runJob(jobQueue.shift(), false);
+		}
+	}
+
+	function enqueueUpload(files) {
+		jobQueue.push(files);
+		pump();
+	}
+
+	// ---- transcode pipeline: sequential, in order; feeds the upload queue ----
+	var chain = Promise.resolve();
+	filelist.forEach(function(srcFile, i) {
+		chain = chain.then(function() {
+			if (pipelineError) return;
 			var nexti = i + 1;
-			var delfile = path.join(workdir, nexti + '.' + j + '.png');
-			fs.unlink(delfile);
+			var croppixel = croppixelarr[i];
+			var cropvftext;
+			if (!window.cropW) {
+				cropvftext = 'crop=in_w:in_h-' + croppixel + ':0:' + croppixel + ',setsar=1,scale=800:-2';
+			} else {
+				var cw = Math.round(widtharr[i] * window.cropW);
+				var ch = Math.round(heightarr[i] * window.cropH);
+				var cx = Math.round(widtharr[i] * window.cropX);
+				var cy = Math.round(heightarr[i] * window.cropY);
+				cropvftext = 'crop=' + cw + ':' + ch + ':' + cx + ':' + cy + ',setsar=1,scale=800:-2';
+			}
+			$('#activefile').html(srcFile.replace(/^.*[\\\/]/, ''));
+
+			if (isclip(srcFile)) {
+				var outfile = path.join(workdir, nexti + '.mp4');
+				var thumbnailfile = path.join(workdir, nexti + '.jpg');
+				croppedfilelist.push(outfile, thumbnailfile);
+				return ffmpeg.processVideo(srcFile, outfile, cropvftext, { preset: 'medium', crf: '20' })
+					.then(function() { return ffmpeg.createThumbnail(outfile, thumbnailfile); })
+					.then(function() {
+						transcodedSources++;
+						cropController.setProgress(Math.min(100, transcodedSources / totalSources * 100));
+						enqueueUpload([outfile, thumbnailfile]);
+					});
+			} else {
+				var stillfile = path.join(workdir, nexti + '.still.jpg');
+				croppedfilelist.push(stillfile);
+				return ffmpeg.processImage(srcFile, stillfile, cropvftext + ',setsar=1')
+					.then(function() {
+						transcodedSources++;
+						cropController.setProgress(Math.min(100, transcodedSources / totalSources * 100));
+						enqueueUpload([stillfile]);
+					});
+			}
+		});
+	});
+
+	// Clean up preview pngs
+	for (var j = 1; j < previewindex + 1; j++) {
+		for (var k = 0; k < filelist.length; k++) {
+			var delfile = path.join(workdir, (k + 1) + '.' + j + '.png');
+			if (fs.existsSync(delfile)) { fs.unlink(delfile, function() {}); }
 		}
 	}
+
+	window.start = performance.now();
+	chain.then(function() {
+		if (pipelineError) return;
+		cropController.setProgress(100);
+		$('#progressmsg').html('✓ De-identification complete');
+		$('#activefile').hide();
+		// fill animates to 100, then fade to green
+		setTimeout(function() { $('#myProgress').addClass('crop-complete'); }, 320);
+		transcodeDone = true;
+		maybeFinish();
+	}).catch(function(error) {
+		fail(error);
+	});
 });
-
-var form;
-
-function sendFiles(fileList, url) {
-	// console.log(fileList, url);
-	return () => new Promise((resolve, reject) => {
-		form = new FormData();
-		for (i = 0; i < fileList.length; i++) {
-			var thisfile = fs.readFileSync(fileList[i]);
-			// console.log(fileList[i]);
-			var nameonly = path.basename(fileList[i]);
-			form.append('file[]', thisfile, nameonly);
-		}
-
-		let formHeaders = form.getHeaders();
-		axios.post(
-			url,
-			form, {
-				adapter: require('axios/lib/adapters/http'),
-				headers: {
-					...formHeaders,
-				},
-				maxBodyLength: Infinity,
-				maxBodyLength: Infinity
-
-			}
-		).then((response) => {
-			// console.log(response.data); //.data.length);
-			resolve(1);
-		}).catch(error => {
-			console.log(error)
-		})
-	});
-}
-
-function upload() {
-	return () => new Promise((resolve, reject) => {
-		var myqueue = [];
-		finallink = 'https://www.sonoclipshare.com/archive.php?&f=' + folder;
-		if (title) { //NEW ARCHIVE URL
-			title = encodeURIComponent(title);
-			var uploadlink = 'https://www.sonoclipshare.com/uploadapp3.php?&token=' + id_token + '&t=' + title + '&f=' + folder;
-		} else { //ADD TO ARCHIVE
-			var uploadlink = 'https://www.sonoclipshare.com/uploadapp3.php?&f=' + folder + '&token=' + id_token;
-		}
-		var localfile = [];
-		var cookie = path.join(workdir,'cookie');
-
-		for (var i = 0; i < croppedfilelist.length; i += 3) {
-			var last = Math.min(croppedfilelist.length, i + 3);
-			console.log('last:' + last,croppedfilelist.length);
-			var uploadList = croppedfilelist.slice(i, last);
-			var lastProg = Math.min(croppedfilelist.length, i + 2);
-			myqueue.push(sendFiles(uploadList, uploadlink));
-			myqueue.push(progressUL(lastProg));
-		}
-		myqueue.push(progressend(1));
-		queue(myqueue).then(([cmd, args]) => {
-			// console.log(cmd + ' finished - all finished');
-		}).catch(function(error) {
-			console.error(error.stack);
-		});
-		resolve(i);
-	});
-
-}
-
-function uploadqueue(i) {
-	return () => new Promise((resolve, reject) => {
-
-		/*
-                for (var i = 0; i < croppedfilelist.length; i++) {
-                        console.log("upload: " + croppedfilelist[i]);
-                }
-		*/
-		resolve(i);
-	});
-}
-var filepaths = [];
 
 function preview() {
 	var myqueue = [];
@@ -523,112 +584,136 @@ function preview() {
 	widtharr = [];
 	heightarr = [];
 	croppixelarr = [];
-	myqueue = [];
-	var skip = 0;
-	for (var i = 0; i < filelist.length; i++) {
-		var nameonly = filelist[i].split("\\");
-		nameonly = nameonly.slice(-1);
-		nameonly = nameonly.join();
-		var ext = nameonly.split(".").slice(-1);
-		var basename = nameonly.split(".");
-		basename.pop();
-		basename = basename.join(".");
-		var folderonly = filelist[i].split("\\");
-		folderonly.pop();
-		folderonly = folderonly.join("\\");
-		filecrop = folderonly + '\\' + basename + '_crop.' + ext;
-		filepaths.push(filecrop);
-
-		var nexti = i + 1;
-		var ffprobe = spawnsync(ffprobepath, ['-print_format', 'json', '-show_streams', '-select_streams', 'v', '-i', filelist[i]]);
-		if (ffprobe.status.toString() == 0) {
-			var ffprobeOb = JSON.parse(ffprobe.stdout);
-			width = ffprobeOb.streams[0].width;
-			height = ffprobeOb.streams[0].height;
-			if (isstill(filelist[i])) {
-				if (width < 50 || height < 50) {
-					var filename = filepaths[i].replace(/^.*[\\\/]/, '');
-					$('#croplist').append(originals[i].toString() + ' was removed because it was a tiny image' + '<br>');
-
-					filelist.splice(i, 1);
-					filepaths.splice(i, 1);
-					originals.splice(i, 1);
-					i = i - 1;
-					skip = 1;
+	
+	var processFile = function(index) {
+		return function() {
+			return new Promise(function(resolve, reject) {
+				if (index >= filelist.length) {
+					resolve();
+					return;
 				}
-			}
-			var outfile = path.join(workdir, nexti + '.' + previewindex + '.png');
-			var croppixel = 2 * Math.round(height * window.croppixelperc / 2);
-			widtharr.push(width);
-			heightarr.push(height);
-			croppixelarr.push(croppixel);
-			if (!window.cropW) {
-				var cropvftext = 'setsar=1,scale=trunc(iw/2)*2:trunc(ih/2)*2,crop=in_w:in_h-' + croppixel + ':0:' + croppixel + ',scale=650:-1';
-			} else {
-				var cropWidth = Math.round(widtharr[i] * window.cropW);
-				var cropHeight = Math.round(heightarr[i] * window.cropH);
-				var cropXstart = Math.round(widtharr[i] * window.cropX);
-				var cropYstart = Math.round(heightarr[i] * window.cropY);
-				var cropvftext = 'setsar=1,scale=trunc(iw/2)*2:trunc(ih/2)*2,crop=' + cropWidth + ':' + cropHeight + ':' + cropXstart + ':' + cropYstart + ',scale=650:-1';
-			}
-			myqueue.push(customSpawn(ffmpegpath, ['-i', filelist[i], '-an', '-vf', cropvftext, '-map_metadata', '-1', '-pix_fmt', 'rgb24', '-vframes', '1', '-f', 'image2', '-y', outfile]));
-		} else {
-			var filename = filepaths[i].replace(/^.*[\\\/]/, '');
-			$('#croplist').append(originals[i].toString() + ' was ignored because it was not an image file' + '<br>');
-			//console.log(originals[i].toString());
-			originals.splice(i, 1);
-			filelist.splice(i, 1);
-			filepaths.splice(i, 1);
-			i = i - 1;
-			skip = 1;
-
-		}
-		if (skip != 1) {
-			myqueue.push(previewdump(nexti));
-		} else {
-			skip = 0;
-		}
+				
+				ffmpeg.probe(filelist[index])
+					.then(function(metadata) {
+						const videoStream = metadata.streams.find(stream => stream.codec_type === 'video');
+						if (!videoStream) {
+							$('#croplist').append(filelist[index] + ' has no video stream<br>');
+							filelist.splice(index, 1);
+							resolve();
+							return;
+						}
+						
+						const width = videoStream.width;
+						const height = videoStream.height;
+						
+						if (isstill(filelist[index]) && (width < 50 || height < 50)) {
+							$('#croplist').append(filelist[index] + ' was removed because it was a tiny image<br>');
+							filelist.splice(index, 1);
+							resolve();
+							return;
+						}
+						
+						var outfile = path.join(workdir, (index + 1) + '.' + previewindex + '.png');
+						var croppixel = 2 * Math.round(height * window.croppixelperc / 2);
+						
+						widtharr[index] = width;
+						heightarr[index] = height;
+						croppixelarr[index] = croppixel;
+						
+						var cropvftext;
+						if (!window.cropW) {
+							cropvftext = 'crop=in_w:in_h-' + croppixel + ':0:' + croppixel + ',setsar=1,scale=650:-1';
+						} else {
+							var cropWidth = Math.round(width * window.cropW);
+							var cropHeight = Math.round(height * window.cropH);
+							var cropXstart = Math.round(width * window.cropX);
+							var cropYstart = Math.round(height * window.cropY);
+							cropvftext = 'crop=' + cropWidth + ':' + cropHeight + ':' + cropXstart + ':' + cropYstart + ',setsar=1,scale=650:-1';
+						}
+						
+						return ffmpeg.generatePreview(filelist[index], outfile, cropvftext);
+					})
+					.then(function() {
+						return previewdump(index + 1)();
+					})
+					.then(function() {
+						resolve();
+					})
+					.catch(function(err) {
+						console.error(`Preview generation error:`, err.message);
+						$('#croplist').append(filelist[index] + ' failed to generate preview<br>');
+						resolve();
+					});
+			});
+		};
+	};
+	
+	for (var i = 0; i < filelist.length; i++) {
+		myqueue.push(processFile(i));
 	}
+	
 	$('#loading-container').hide();
 	$('#preview').show();
 	$('#previewsize').show();
 	$('#previewsizetext').show();
 	myqueue.push(showbtns());
-	queue(myqueue).then(([cmd, args]) => {
-		// console.log(cmd + ' finished - all finished');
-	}).catch(TypeError, function(e) {}).catch(err => console.log(err));
+	
+	queue(myqueue).then(function() {
+		console.log('Preview generation completed');
+	}).catch(function(err) {
+		console.log('Preview error:', err);
+	});
 }
 
 function previewdump(i) {
-	return () => new Promise((resolve, reject) => {
-		var outfile = path.join(workdir, i + '.' + previewindex + '.png');
-		var widthcrop = 300;
-		var heightcrop = Math.round((heightarr[i - 1] - croppixelarr[i - 1]) * 300 / widtharr[i - 1]);
-		var imagehtml = '<div class="previewimg"><img src="' + outfile + '" width="' + widthcrop + 'px"></img></div>';
-		//imagehtml = '<td><img src="' + outfile + '" width="' + widthcrop + 'px" height="' + heightcrop + 'px"></img></td>';
-		$('#img-grid').append(imagehtml);
-		resolve(i);
-	});
+	return function() {
+		return new Promise(function(resolve, reject) {
+			var outfile = path.join(workdir, i + '.' + previewindex + '.png');
+			
+			var originalWidth = widtharr[i - 1];
+			var originalHeight = heightarr[i - 1];
+			var croppixel = croppixelarr[i - 1];
+			
+			var croppedHeight = originalHeight - croppixel;
+			var aspectRatio = originalWidth / croppedHeight;
+			
+			var maxWidth = 300;
+			var previewWidth = Math.min(maxWidth, originalWidth);
+			var previewHeight = Math.round(previewWidth / aspectRatio);
+			
+			var imagehtml = '<div class="previewimg"><img src="' + outfile + '" width="' + previewWidth + 'px" height="' + previewHeight + 'px" style="object-fit: contain;"></img></div>';
+			$('#img-grid').append(imagehtml);
+			resolve(i);
+		});
+	};
 }
+
 $('#manualbtn').click(function() {
 	window.draw = 1;
 	$('#preview').hide();
-	dim = canvasbg(filelist);
-	width = dim.streams[0].width;
-	height = dim.streams[0].height;
-	canvasaspect = height / width;
-	var time = new Date().toLocaleString();
-	var timestamp = encodeURI(time);
-	$('#myCanvas').css("background-image", "url(" + previewfile + "?" + timestamp + ")");
-	canvasheight = 500 * canvasaspect;
-	$('#myCanvas').attr('height', canvasheight);
-	$('#canvaswrap').fadeIn();
-	$('#highlight').fadeIn();
-	$('#manualOKbtn').fadeIn();
-	$('#manualbtn').hide();
-	$('#cropbtn').hide();
-	$('#confirm').hide();
+	
+	canvasbg(filelist).then(function(metadata) {
+		const videoStream = metadata.streams.find(stream => stream.codec_type === 'video');
+		const width = videoStream.width;
+		const height = videoStream.height;
+		canvasaspect = height / width;
+		
+		var time = new Date().toLocaleString();
+		var timestamp = encodeURI(time);
+		$('#myCanvas').css("background-image", "url(" + previewfile + "?" + timestamp + ")");
+		canvasheight = 500 * canvasaspect;
+		$('#myCanvas').attr('height', canvasheight);
+		$('#canvaswrap').fadeIn();
+		$('#highlight').fadeIn();
+		$('#manualOKbtn').fadeIn();
+		$('#manualbtn').hide();
+		$('#cropbtn').hide();
+		$('#confirm').hide();
+	}).catch(function(err) {
+		console.error('Error generating canvas background:', err);
+	});
 });
+
 $('#manualOKbtn').click(function() {
 	$(this).hide();
 	$('#canvaswrap').hide();
@@ -640,27 +725,6 @@ $('#manualOKbtn').click(function() {
 		$('#loading-container').hide();
 		setcropvars();
 	}, 10);
-});
-$('#myCanvas').click(function() {
-	//console.log(Math.round(window.cropY / canvasaspect));
-});
-$('#filelistbtn').click(function() {
-	$('#filelistwrap').hide();
-	for (var i = 0; i < filelist.length; i++) {
-		$('#filelist').append(i + ': ' + filelist[i] + '<br />');
-	}
-	$('#filelistwrap').show();
-	$('body, html').scrollLeft(1000);
-	$(this).hide();
-	$('#previewbtn').fadeIn();
-	$('#addbtn').fadeIn();
-});
-$('#addbtn').click(function() {
-	$('#filelist').html('');
-	$('#filelistwrap').hide();
-	$('#filelistwrap').show();
-	$(this).hide();
-	$('#filelistbtn').fadeIn();
 });
 
 function addfilestatus() {
@@ -677,18 +741,26 @@ function addfilestatus() {
 	$('#addfilestatus').html(clipnum + ' clips, ' + stillnum + ' stills added');
 	$('#addfilestatus').show();
 }
+
 $('#add').click(function() {
 	$('#finallinkwrap').hide();
 	$('#addornew').hide();
-	// console.log('trying to load');
 	loadmyarchives();
 });
 
 function loadmyarchives() {
+	var currentToken = checkToken();
+	if (!currentToken) {
+		$('#loading-container').hide();
+		alert('Authentication token not available. Please restart the app.');
+		return;
+	}
+	
 	$('#loading-text').hide();
 	$('#loading-container').show();
 	$('#myarchives').html('<option value="Select">Select</option>');
-	var url = "https://www.sonoclipshare.com/myarchivesapp.php?&token=" + id_token;
+	var url = "https://www.sonoclipshare.com/myarchivesapp.php?&token=" + currentToken;
+	
 	$.ajax({
 		cache: false,
 		url: url,
@@ -697,7 +769,6 @@ function loadmyarchives() {
 		type: 'GET',
 		async: true,
 		success: function(response) {
-			//console.log(response);
 			$('#loading-text').show();
 			$('#loading-container').hide();
 			if (response != null) {
@@ -706,23 +777,19 @@ function loadmyarchives() {
 						var nextitem = 'archive#' + response[item].archive + ' , ' + response[item].date + ' , ' + response[item].title;
 						var folder = response[item].folder;
 						$('#myarchives').append('<option value=' + folder + '>' + nextitem + '</option>');
-						//$('#addornew').css('display', 'table');
-						//$('#home').show();
 					}
 				}
 			} else {
 				$('#newtitlemessage').html('Give your first Archive a title');
-				console.log("null result");
 			}
-			//console.log(response);
 			$('#addselect').fadeIn();
-
 		},
 		error: function() {
 			console.log("ERROR w/ AJAX!");
 		}
 	});
 }
+
 $('#new').click(function() {
 	$('#thetitle').val('');
 	$('#finallinkwrap').hide();
@@ -730,6 +797,7 @@ $('#new').click(function() {
 	$('#newtitle').fadeIn();
 	$('#thetitle').focus();
 });
+
 $('#oktitle').click(function() {
 	title = $('#thetitle').val();
 	title = title.trim();
@@ -737,20 +805,34 @@ $('#oktitle').click(function() {
 	if (title.length > 0) {
 		$('#newtitle').hide();
 		$('#filelistwrap').fadeIn();
-		console.log("OK, will create archive with title/folder: " + title + '/' + folder);
+		console.log("Creating archive with title/folder: " + title + '/' + folder);
 	}
 });
+
 $('#okselect').click(function() {
-	//console.log($('#myarchives').val());
 	folder = $('#myarchives').val();
 	if (folder != 'Select') {
 		$('#addselect').hide();
 		$('#filelistwrap').fadeIn();
 	}
 });
+
+// UPDATED: Home button with unified progress cleanup
 $('#home').click(function() {
+	// Stop both progress controllers
+	if (cropController) {
+		cropController.stop();
+		cropController = null;
+	}
+	if (progressController) {
+		progressController.stop();
+		progressController = null;
+	}
+	$('#myProgress').hide();
+	$('#progressmsg').hide();
+	
+	// Reset all UI elements
 	$('#activefile').hide();
-	$('#activefileUL').hide();
 	$('#addornew').fadeIn();
 	$('#addselect').hide();
 	$('#canvaswrap').hide();
@@ -761,22 +843,152 @@ $('#home').click(function() {
 	$('#finallinkwrap').hide();
 	$('#highlight').hide();
 	$('#loading-container').hide();
-	$('#myProgress').hide();
 	$('#myProgressUL').hide();
 	$('#newtitle').hide();
 	$('#preview').hide();
 	$('#previewbtn').hide();
-	$('#progressmsg').hide();
 	$('#progressmsgUL').hide();
+	$('#uploadstatus').hide();
+	$('#uploaderrors').hide();
+	$('#manualbtn').hide();
+	
+	// Reset progress bar completely
+	$('#myProgressUL').removeClass('uploading deidentifying processing progress-complete');
+	var elem = document.getElementById("myBarUL");
+	var label = document.getElementById("labelUL");
+	if (elem && label) {
+		elem.classList.remove('progress-complete');
+		elem.style.width = "0%";
+		elem.style.backgroundColor = "";
+		label.innerHTML = "0%";
+	}
+	
+	// Reset variables
 	filelist = [];
+	croppedfilelist = [];
+	uploadBatchId = null;
+	title = null;
+	folder = null;
+	lastperc = 0;
+	lastpercUL = 0;
+	
 	$('#filelist').html('');
 	addfilestatus();
 	$('#drag').css('visibility', 'visible');
-	$('#manualbtn').hide();
-	//$('button').hide();
 });
 
-function onbeforeunload(e) {
-	console.log('>>>> onbeforeunload called');
-	e.returnValue = "false";
+// Canvas drawing functionality
+var canvas = document.getElementById('myCanvas');
+var ctx = canvas.getContext('2d');
+var rect = {};
+var drag = false;
+var mouseX, mouseY;
+
+function init() {
+	canvas.addEventListener('mousedown', mouseDown, false);
+	canvas.addEventListener('mouseup', mouseUp, false);
+	canvas.addEventListener('mousemove', mouseMove, false);
+}
+
+function mouseDown(e) {
+	if (window.draw == 1) {
+		rect.startX = e.pageX - this.offsetLeft;
+		rect.startY = e.pageY - this.offsetTop;
+		drag = true;
+	}
+}
+
+function mouseUp() {
+	if (window.draw == 1) {
+		drag = false;
+		if (rect.w && rect.h) {
+			var canvasWidth = canvas.width;
+			var canvasHeight = canvas.height;
+			
+			window.cropX = rect.startX / canvasWidth;
+			window.cropY = rect.startY / canvasHeight;
+			window.cropW = rect.w / canvasWidth;
+			window.cropH = rect.h / canvasHeight;
+		}
+	}
+}
+
+function mouseMove(e) {
+	if (window.draw == 1 && drag) {
+		mouseX = e.pageX - this.offsetLeft;
+		mouseY = e.pageY - this.offsetTop;
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		draw();
+	}
+}
+
+function draw() {
+	ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	
+	rect.w = mouseX - rect.startX;
+	rect.h = mouseY - rect.startY;
+	
+	ctx.clearRect(rect.startX, rect.startY, rect.w, rect.h);
+	
+	ctx.strokeStyle = '#00ff00';
+	ctx.lineWidth = 2;
+	ctx.strokeRect(rect.startX, rect.startY, rect.w, rect.h);
+}
+
+// Keyboard shortcuts
+$(document).keydown(function(e) {
+	if (e.keyCode === 27) {
+		$('#home').click();
+	}
+	
+	if (e.keyCode === 13) {
+		if ($('#newtitle').is(':visible')) {
+			$('#oktitle').click();
+		} else if ($('#addselect').is(':visible')) {
+			$('#okselect').click();
+		} else if ($('#canvaswrap').is(':visible')) {
+			$('#manualOKbtn').click();
+		}
+	}
+	
+	if (e.keyCode === 32 && $('#cropbtn').is(':visible')) {
+		e.preventDefault();
+		$('#cropbtn').click();
+	}
+});
+
+// Error handling and cleanup
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+	console.error('JavaScript Error:', {
+		message: msg,
+		source: url,
+		line: lineNo,
+		column: columnNo,
+		error: error
+	});
+	
+	if (msg.includes('token') || msg.includes('upload') || msg.includes('ffmpeg')) {
+		$('#uploaderrors').html('An error occurred. Please try again or restart the application.');
+		$('#uploaderrors').show();
+	}
+	
+	return false;
 };
+
+window.addEventListener('beforeunload', function(e) {
+	if (cropController) { cropController.stop(); }
+	if (progressController) { progressController.stop(); }
+
+	var uploading = $('#myProgressUL').is(':visible') && progressController && progressController.getCurrentProgress() < 100;
+	var cropping = $('#myProgress').is(':visible') && cropController && cropController.getCurrentProgress() < 100;
+	if (uploading || cropping) {
+		e.preventDefault();
+		e.returnValue = 'Processing in progress. Are you sure you want to close?';
+		return e.returnValue;
+	}
+});
+
+console.log('Renderer script loaded successfully');
+console.log('Application version:', version);
+console.log('Working directory:', workdir);

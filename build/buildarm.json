@@ -1,12 +1,27 @@
 {
-    "files": [
-      "!**/@ffmpeg-installer/win32-ia32${/*}", 
-      "!**/@ffmpeg-installer/darwin-x64${/*}",
-      "!**/@ffprobe-installer/win32-ia32${/*}", 
-      "!**/@ffprobe-installer/darwin-x64${/*}",
-      "!**/@ffmpeg-installer/win32-x64${/*}",
-      "!**/@ffprobe-installer/win32-x64${/*}",
-    ],
-    "asar": false,
-    "appId": "SonoClipShareUploader"
+  "appId": "com.sonoclipshare.uploader",
+  "productName": "SonoClipShare Uploader",
+  "asar": false,
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "**/*",
+    "!**/node_modules/ffprobe-static/bin/linux/**/*",
+    "!**/node_modules/ffprobe-static/bin/win32/**/*",
+    "!**/node_modules/ffprobe-static/bin/darwin/x64/**/*"
+  ],
+  "mac": {
+    "hardenedRuntime": true,
+    "entitlements": "entitlements.mac.plist",
+    "entitlementsInherit": "entitlements.mac.plist",
+    "gatekeeperAssess": false,
+    "identity": "Core Ultrasound, LLC (6VK3JZ7LRU)",
+    "notarize": false,
+    "artifactName": "${productName}-${version}-arm64.${ext}",
+    "target": {
+      "target": "dmg",
+      "arch": "arm64"
+    }
+  }
 }

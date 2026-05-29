@@ -1,0 +1,27 @@
+{
+  "appId": "com.sonoclipshare.uploader",
+  "productName": "SonoClipShare Uploader",
+  "asar": false,
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "**/*",
+    "!**/node_modules/ffmpeg-static/bin/darwin/**/*",
+    "!**/node_modules/ffmpeg-static/bin/linux/**/*",
+    "!**/node_modules/ffmpeg-static/bin/win32/x64/**/*",
+    "!**/node_modules/ffprobe-static/bin/darwin/**/*",
+    "!**/node_modules/ffprobe-static/bin/linux/**/*",
+    "!**/node_modules/ffprobe-static/bin/win32/x64/**/*"
+  ],
+  "win": {
+    "sign": "./scripts/sign-windows.js",
+    "artifactName": "${productName} Setup ${version} x32.${ext}",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["ia32"]
+      }
+    ]
+  }
+}

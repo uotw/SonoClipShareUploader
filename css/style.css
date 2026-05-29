@@ -191,8 +191,13 @@ html, body {
  #progressmsg {
      font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
      display:none;
-     margin-top: 80px;
-     margin-bottom: -60px;
+     margin-top: 40px;
+     margin-bottom: 6px;
+     height: 24px;
+     line-height: 24px;
+     white-space: nowrap;
+     overflow: hidden;
+     text-overflow: ellipsis;
 }
  #previewbtn{
      display:none;
@@ -200,51 +205,74 @@ html, body {
  #activefile {
      font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
      display:none;
-     margin-top: 100px;
+     margin-top: 6px;
+     font-size: 12px;
+     color: #888;
+     font-style: italic;
 }
  #myProgress {
-     top:100px;
      display:none;
      position: relative;
      width: 100%;
-     height: 30px;
-     background-color: #ddd;
+     height: 16px;
+     background-color: #e9ecef;
+     border-radius: 8px;
+     overflow: hidden;
+     margin-bottom: 22px;
 }
  #myBar {
      position: absolute;
      width: 0;
      height: 100%;
-     background-color: #0099ff;
+     border-radius: 8px;
+     background-color: #f59e0b;
+     transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.45s ease;
+}
+ #myProgress.crop-complete #myBar {
+     background-color: #22c55e;
 }
  #label {
      text-align: center;
-     line-height: 30px;
+     line-height: 16px;
+     font-size: 10px;
+     font-weight: 700;
+     letter-spacing: 0.3px;
      color: white;
+     text-shadow: 0 1px 2px rgba(0,0,0,0.18);
 }
  #myProgressUL {
-     top:100px;
      display:none;
      position: relative;
      width: 100%;
-     height: 30px;
-     background-color: #ddd;
+     height: 16px;
+     background-color: #e9ecef;
 }
  #myBarUL {
      position: absolute;
      width: 0;
      height: 100%;
-     background-color: #0099ff;
+     border-radius: 8px;
+     background-color: #3b82f6;
 }
  #labelUL {
      text-align: center;
-     line-height: 30px;
+     line-height: 16px;
+     font-size: 10px;
+     font-weight: 700;
+     letter-spacing: 0.3px;
      color: white;
+     text-shadow: 0 1px 2px rgba(0,0,0,0.18);
 }
  #progressmsgUL {
      font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
      display:none;
-     margin-top: 80px;
-     margin-bottom: -60px;
+     margin-top: 0;
+     margin-bottom: 6px;
+     height: 24px;
+     line-height: 24px;
+     white-space: nowrap;
+     overflow: hidden;
+     text-overflow: ellipsis;
 }
  th, td {
      padding: 15px;
@@ -658,3 +686,105 @@ html, body {
      margin:auto;
 }
 
+
+
+/* Ultra-Smooth Progress Bar Animations */
+#myBarUL {
+    transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.45s ease;
+    will-change: width;
+}
+
+/* Completion effect */
+#myBarUL.upload-complete {
+    background: linear-gradient(45deg, 
+        #4CAF50 0%, 
+        #45a049 25%, 
+        #4CAF50 50%, 
+        #45a049 75%, 
+        #4CAF50 100%);
+    background-size: 200% 200%;
+    animation: success-shimmer 1.2s ease-in-out;
+    box-shadow: 0 0 20px rgba(76, 175, 80, 0.4);
+}
+
+@keyframes success-shimmer {
+    0% {
+        background-position: 200% 0%;
+    }
+    100% {
+        background-position: -200% 0%;
+    }
+}
+
+/* Progress percentage label smooth transition */
+#labelUL {
+    transition: color 0.15s ease;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.18);
+}
+
+/* Upload progress container improvements */
+#myProgressUL {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12);
+    background-color: #e9ecef;
+}
+
+/* Enhanced pulse during active uploading */
+#myProgressUL.uploading #myBarUL:not(.upload-complete) {
+    position: relative;
+}
+
+#myProgressUL.uploading #myBarUL:not(.upload-complete)::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, 
+        rgba(255,255,255,0) 0%, 
+        rgba(255,255,255,0.3) 50%, 
+        rgba(255,255,255,0) 100%);
+    animation: progress-shine 2s ease-in-out infinite;
+}
+
+@keyframes upload-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+    50% {
+        opacity: 0.9;
+        transform: scaleY(0.98);
+    }
+}
+
+@keyframes progress-shine {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(200%);
+    }
+}
+
+/* Smoother text updates */
+#progressmsgUL {
+    transition: opacity 0.3s ease;
+}
+
+/* Different colors for different phases */
+#myProgressUL.deidentifying #myBarUL {
+    background: linear-gradient(90deg, #FF9800, #F57C00);
+}
+
+#myProgressUL.uploading #myBarUL {
+    background-color: #3b82f6;
+}
+
+#myProgressUL.progress-complete #myBarUL {
+    background-color: #22c55e;
+}

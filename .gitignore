@@ -130,3 +130,8 @@ dist
 .pnp.*
 
 .DS_Store
+
+# non-app files
+uploadapi.txt
+*_bu.js
+*_bu.json

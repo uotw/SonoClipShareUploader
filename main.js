@@ -25,6 +25,9 @@ const {
   Menu
 } = require('electron')
 
+// Initialize global variables early - BEFORE any windows are created
+global.workdirObj = { prop1: null };
+global.token = { thetoken: null };
 
 // const log = require('electron-log');
 // log.initialize({ spyRendererConsole: true});
@@ -61,6 +64,9 @@ var authWindow;
 function createmainWindow(token, authWindow) {
   // Create the browser window.
   authWindow.close();
+  
+  //console.log('createmainWindow called with token:', typeof token, token ? token.substring(0, 100) + '...' : 'null');
+  
   mainWindow = new BrowserWindow({
     width: 1100,
     height: mainWindowHeight,
@@ -79,21 +85,35 @@ function createmainWindow(token, authWindow) {
     userAgent: 'Chrome'
   });
 
-  var responsetoken = JSON.parse(token);
-  global.token = {
-    thetoken: responsetoken.id_token
-  };
-  //console.log(global.token.thetoken);
+  try {
+    var responsetoken = JSON.parse(token);
+    // console.log('Parsed token object:', Object.keys(responsetoken));
+    // console.log('id_token present:', !!responsetoken.id_token);
+    // console.log('access_token present:', !!responsetoken.access_token);
+    
+    // Try id_token first, then access_token as fallback
+    var tokenValue = responsetoken.id_token || responsetoken.access_token;
+    
+    if (tokenValue) {
+      // Update existing global token (don't create new object)
+      global.token.thetoken = tokenValue;
+      // console.log('Token set successfully. Length:', tokenValue.length);
+      // console.log('Token preview:', tokenValue.substring(0, 20) + '...');
+    } else {
+      // console.error('No id_token or access_token found in response');
+      // console.log('Full response object:', responsetoken);
+    }
+    
+  } catch (parseError) {
+    // console.error('Error parsing token:', parseError);
+    // console.log('Raw token received:', token);
+  }
 
-
-  //initialize GLOBAL WORKING DIR VARIABLE
-  global.workdirObj = {
-    prop1: null
-  };
+  // workdirObj is already created globally, no need to recreate
   mainWindow.on('close', function(event) {
     //event.preventDefault();
     if (global.workdirObj.prop1) {
-      console.log('removing the ' + global.workdirObj.prop1 + ' directory.');
+      // console.log('removing the ' + global.workdirObj.prop1 + ' directory.');
       var spawnsync = require('child_process').spawnSync;
       spawnsync("rm", ['-rf', global.workdirObj.prop1]);
     }
@@ -112,36 +132,32 @@ function createmainWindow(token, authWindow) {
 }
 
 function createauthWindow() {
-
   var authService = new _AuthService2.default(getAuthConfig());
   authWindow = new BrowserWindow({
     width: 1100,
     height: 750,
-    backgroundColor: '#fff',
+    backgroundColor: '#111118', // Fallback color
   });
   authWindow.setResizable(false);
 
-  /*
-    Go to hosted login page at the authorise endpoint
-    authenticate
-    and request auth code, and send challenge
-  */
-  var pjson = require('./package.json');
-  var useragent = "Chrome - SonoClipShareUploader/" + pjson.version;
-  authWindow.loadURL(authService.requestAuthCode(), {
-    userAgent: useragent
-  });
-  //authWindow.openDevTools()
+  // Load your custom loading page first
+  authWindow.loadURL(`file://${__dirname}/auth-loading.html`);
+
+  // Navigate to auth after a short delay
+  setTimeout(() => {
+    var pjson = require('./package.json');
+    var useragent = "Chrome - SonoClipShareUploader/" + pjson.version;
+    authWindow.loadURL(authService.requestAuthCode(), {
+      userAgent: useragent
+    });
+  }, 1500); // Show loading for 1.5 seconds
+
+  // Rest of your existing code...
   const ses = authWindow.webContents.session;
   ses.webRequest.onCompleted({
     urls: ['https://ultrasoundjelly.auth0.com/mobile*']
   }, (details) => {
     authService.requestAccessCode(details.url, createmainWindow, authWindow);
-  });
-  authWindow.webContents.on('will-navigate', function() {
-    //console.log("redirect");
-    //authWindow.close();
-    //createmainWindow();
   });
 }
 
@@ -228,10 +244,11 @@ app.on('browser-window-created', (_, win) => {
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
 
-
 ipcMain.on('focusnow', event => {
-  mainWindow.setAlwaysOnTop(true);
-  mainWindow.show();
-  mainWindow.setAlwaysOnTop(false);
-  app.focus();
+  if (mainWindow) {
+    mainWindow.setAlwaysOnTop(true);
+    mainWindow.show();
+    mainWindow.setAlwaysOnTop(false);
+    app.focus();
+  }
 })
