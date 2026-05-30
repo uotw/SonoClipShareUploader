@@ -93,18 +93,18 @@
         var showsignup = !appVersion;
 
         // ------------------------------------------------------------------
-        // Update banner: ask GitHub for the latest release and compare to the
-        // running app version. No hardcoded "newest version" to maintain.
-        // Fails silently (no banner) if offline / rate-limited — never blocks login.
+        // Update banner: ask sonoclipshare.com for the latest released version
+        // (kept current by the release CI — see server/appversion.php) and
+        // compare to the running app version. No hardcoded version to maintain,
+        // and no GitHub API rate limit. Fails silently (no banner) if the
+        // endpoint is unreachable — never blocks login.
         // ------------------------------------------------------------------
         if (appVersion) {
-          fetch('https://api.github.com/repos/uotw/SonoClipShareUploader/releases/latest', {
-            headers: { 'Accept': 'application/vnd.github+json' }
-          })
+          fetch('https://www.sonoclipshare.com/appversion.php')
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
-              if (!data || !data.tag_name) return;
-              var latest = String(data.tag_name).replace(/^v/i, '');   // "v2.6.1" -> "2.6.1"
+              if (!data || !data.version) return;
+              var latest = String(data.version).replace(/^v/i, '');    // "2.6.2"
               if (versionCompare(appVersion, latest) === -1) {         // running older than latest
                 var popover = document.getElementById('popovermessage');
                 if (popover) popover.style.display = 'inline';

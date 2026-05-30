@@ -146,3 +146,15 @@ jobs:
             artifacts/**/*.exe
           fail_on_unmatched_files: true
           generate_release_notes: true
+
+      # Tell sonoclipshare.com the newest version so the Auth0 login page can
+      # show the "update available" banner (server/appversion.php). Best-effort:
+      # a failure here must not fail the release.
+      - name: Publish latest version to sonoclipshare.com
+        env:
+          SCS_RELEASE_TOKEN: ${{ secrets.SCS_RELEASE_TOKEN }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          curl -fsS -X POST "https://www.sonoclipshare.com/appversion.php?version=${V}" \
+            -H "X-Release-Token: ${SCS_RELEASE_TOKEN}" \
+            || echo "::warning::version publish to sonoclipshare.com failed (non-fatal)"
