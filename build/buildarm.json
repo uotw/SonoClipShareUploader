@@ -17,7 +17,7 @@
     "entitlementsInherit": "entitlements.mac.plist",
     "gatekeeperAssess": false,
     "identity": "Core Ultrasound, LLC (6VK3JZ7LRU)",
-    "notarize": { "teamId": "6VK3JZ7LRU" },
+    "notarize": false,
     "artifactName": "${productName}-${version}-arm64.${ext}",
     "target": {
       "target": "dmg",

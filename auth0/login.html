@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta charset="utf-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+      <title>Sign In with Auth0</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+      <style>
+        .auth0-lock-badge-bottom { display:none }
+        .auth0-lock-name { font-size:18px !important }
+        .auth0-lock.auth0-lock { z-index:100 !important; }
+        .auth0-lock-social-button-icon { background-size: 97% !important; }
+        .auth0-lock-social-button-text { font-family: 'Roboto', sans-serif !important; }
+        #popovermessage {
+          display:none;
+          left:0;
+          font-size:20px;
+          position:fixed;
+          text-align:center;
+          width:100%;
+          background-color:#ff6600;
+          top:0px;
+          z-index:500;
+          color:white;
+          height:2em;
+          line-height:2em;
+          transition: height .5s ease-in-out;
+        }
+      </style>
+   </head>
+   <body>
+      <a href="https://github.com/uotw/SonoClipShareUploader/releases/latest" id="nah" target="_blank">
+        <div id="popovermessage">There's a new version of the Uploader. Click here to download.</div>
+      </a>
+
+      <script src="https://cdn.auth0.com/js/lock/11.3/lock.min.js"></script>
+
+      <script>
+        // ------------------------------------------------------------------
+        // Compare two dotted version strings. Returns -1 (v1<v2), 0, or 1.
+        // (from http://stackoverflow.com/a/6832721)
+        // ------------------------------------------------------------------
+        function versionCompare(v1, v2, options) {
+          var lexicographical = (options && options.lexicographical) || false,
+              zeroExtend = (options && options.zeroExtend) || true,
+              v1parts = (v1 || "0").split('.'),
+              v2parts = (v2 || "0").split('.');
+
+          function isValidPart(x) {
+            return (lexicographical ? /^\d+[A-Za-zαß]*$/ : /^\d+[A-Za-zαß]?$/).test(x);
+          }
+          if (!v1parts.every(isValidPart) || !v2parts.every(isValidPart)) return NaN;
+
+          if (zeroExtend) {
+            while (v1parts.length < v2parts.length) v1parts.push("0");
+            while (v2parts.length < v1parts.length) v2parts.push("0");
+          }
+          if (!lexicographical) {
+            v1parts = v1parts.map(Number);
+            v2parts = v2parts.map(Number);
+          }
+          for (var i = 0; i < v1parts.length; ++i) {
+            if (v2parts.length == i) return 1;
+            if (v1parts[i] == v2parts[i]) continue;
+            return v1parts[i] > v2parts[i] ? 1 : -1;
+          }
+          return v1parts.length != v2parts.length ? -1 : 0;
+        }
+
+        // Delegated event listener helper (used by the gmail nudge below).
+        function addLiveEventListeners(selector, event, handler) {
+          document.querySelector("body").addEventListener(event, function (evt) {
+            var target = evt.target;
+            while (target != null) {
+              if (target.matches(selector)) { handler(evt); return; }
+              target = target.parentElement;
+            }
+          }, true);
+        }
+
+        // ------------------------------------------------------------------
+        // Detect the uploader app + its version from the User-Agent.
+        // The Electron app loads this page with a UA like:
+        //   "Chrome - SonoClipShareUploader/2.6.1"
+        // ------------------------------------------------------------------
+        var appVersion = null;
+        (navigator.userAgent || '').split(' ').forEach(function (tok) {
+          if (tok.indexOf('SonoClipShareUploader/') === 0) appVersion = tok.split('/')[1];
+        });
+
+        // Hide signup when logging in from inside the uploader app.
+        var showsignup = !appVersion;
+
+        // ------------------------------------------------------------------
+        // Update banner: ask GitHub for the latest release and compare to the
+        // running app version. No hardcoded "newest version" to maintain.
+        // Fails silently (no banner) if offline / rate-limited — never blocks login.
+        // ------------------------------------------------------------------
+        if (appVersion) {
+          fetch('https://api.github.com/repos/uotw/SonoClipShareUploader/releases/latest', {
+            headers: { 'Accept': 'application/vnd.github+json' }
+          })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+              if (!data || !data.tag_name) return;
+              var latest = String(data.tag_name).replace(/^v/i, '');   // "v2.6.1" -> "2.6.1"
+              if (versionCompare(appVersion, latest) === -1) {         // running older than latest
+                var popover = document.getElementById('popovermessage');
+                if (popover) popover.style.display = 'inline';
+              }
+            })
+            .catch(function () { /* ignore — never block login on the update check */ });
+        }
+
+        // ------------------------------------------------------------------
+        // Gmail users must use the Google button (password login disabled for them).
+        // ------------------------------------------------------------------
+        document.addEventListener("DOMContentLoaded", function () {
+          addLiveEventListeners("input[type=email]", "keyup", function () {
+            var emailinput = document.querySelectorAll('input[type=email]')[0];
+            if (!emailinput) return;
+            var emailsuff = (emailinput.value.split('@')[1] || '').toLowerCase();
+            var sub = document.querySelectorAll('.auth0-lock-submit')[0];
+            var subText = document.querySelectorAll('.auth0-label-submit')[0];
+            if (!sub || !subText) return;
+
+            if (emailsuff === "gmail.com") {
+              sub.style.pointerEvents = "none";
+              subText.style.color = "#717171";
+              var button = document.getElementsByClassName('auth0-lock-social-button-text')[0];
+              var label = button ? button.innerHTML.toUpperCase() : 'GOOGLE';
+              alert('use the ' + label + ' button to login with gmail');
+              window.location.reload();
+            } else {
+              sub.style.pointerEvents = "all";
+              subText.style.color = "unset";
+            }
+          });
+        });
+
+        // ------------------------------------------------------------------
+        // Auth0 Lock setup (unchanged behavior).
+        // ------------------------------------------------------------------
+        var config = JSON.parse(decodeURIComponent(escape(window.atob('@@config@@'))));
+        config.extraParams = config.extraParams || {};
+        var connection = config.connection;
+        var prompt = config.prompt;
+        var languageDictionary;
+        var language;
+
+        if (config.dict && config.dict.signin && config.dict.signin.title) {
+          languageDictionary = { title: config.dict.signin.title };
+        } else if (typeof config.dict === 'string') {
+          language = config.dict;
+        }
+        var loginHint = config.extraParams.login_hint;
+
+        var lock = new Auth0Lock(config.clientID, config.auth0Domain, {
+          auth: {
+            redirectUrl: config.callbackURL,
+            responseType: (config.internalOptions || {}).response_type ||
+              (config.callbackOnLocationHash ? 'token' : 'code'),
+            params: config.internalOptions
+          },
+          allowSignUp: showsignup,
+          assetsUrl: config.assetsUrl,
+          allowedConnections: connection ? [connection] : null,
+          rememberLastLogin: !prompt,
+          language: language,
+          languageDictionary: languageDictionary,
+          theme: {
+            logo: 'https://www.sonoclipshare.com/Logo150.png',
+            primaryColor: '#2c2c2c',
+            authButtons: {
+              "google-oauth2": {
+                displayName: "",
+                primaryColor: "#4285F4",
+                foregroundColor: "",
+                icon: "https://www.sonoclipshare.com/btn_google_dark_normal_ios.jpg"
+              }
+            }
+          },
+          prefill: loginHint ? { email: loginHint, username: loginHint } : null,
+          closable: false,
+          defaultADUsernameFromEmailPrefix: false
+        });
+
+        lock.show();
+      </script>
+   </body>
+</html>

@@ -44,17 +44,10 @@ jobs:
       # ffmpeg-static ships a single binary for the host arch (arm64 on the
       # macos-latest runner). ffprobe-static bundles every platform, so only
       # ffmpeg needs swapping between the two mac builds.
-      # electron-builder notarizes + staples the .app during this step (afterSign),
-      # so the DMG it then builds contains an already-stapled app (works offline
-      # even if the app is copied out of the DMG). The DMG itself is also notarized
-      # + stapled in the later step — belt-and-suspenders.
-      - name: Build, sign & notarize arm64
+      - name: Build & sign arm64
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run dist-macarm -- --publish never
 
       - name: Swap in x64 ffmpeg binary
@@ -62,13 +55,10 @@ jobs:
           rm -f node_modules/ffmpeg-static/ffmpeg
           npm_config_arch=x64 node node_modules/ffmpeg-static/install.js
 
-      - name: Build, sign & notarize x64
+      - name: Build & sign x64
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run dist-mac64 -- --publish never
 
       # Fail immediately if signing was silently skipped (e.g. bad cert secret),
