@@ -27,6 +27,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # ffprobe-static ships an x86_64 binary in its darwin/arm64 slot, so the
+      # arm64 app would bundle an Intel component (macOS Rosetta-deprecation
+      # warning). Swap in the genuine arm64 ffprobe before the arm64 build so it
+      # gets signed + notarized like everything else.
+      - name: Use a genuine arm64 ffprobe
+        run: |
+          npm install --no-save @ffprobe-installer/darwin-arm64
+          cp node_modules/@ffprobe-installer/darwin-arm64/ffprobe \
+             node_modules/ffprobe-static/bin/darwin/arm64/ffprobe
+          chmod +x node_modules/ffprobe-static/bin/darwin/arm64/ffprobe
+          a=$(lipo -archs node_modules/ffprobe-static/bin/darwin/arm64/ffprobe)
+          echo "arm64 ffprobe arch: $a"
+          [ "$a" = "arm64" ] || { echo "::error::arm64 ffprobe is not arm64 ($a)"; exit 1; }
+
       # ffmpeg-static ships a single binary for the host arch (arm64 on the
       # macos-latest runner). ffprobe-static bundles every platform, so only
       # ffmpeg needs swapping between the two mac builds.
