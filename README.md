@@ -4,11 +4,13 @@ The purpose of SonoClipShare Uploader is to take ultrasound media in a tradition
 ## Download
 **➡️ [Download the latest release](https://github.com/uotw/SonoClipShareUploader/releases/latest)** (always current), or grab a build directly:
 
+These links always point to the most recent release:
+
 | Platform | Download |
 | --- | --- |
-| **macOS — Apple Silicon** (M1/M2/M3…) | [SonoClipShare Uploader 2.6.1 (arm64 .dmg, 113 MB)](https://github.com/uotw/SonoClipShareUploader/releases/download/v2.6.1/SonoClipShare.Uploader-2.6.1-arm64.dmg) |
-| **macOS — Intel** | [SonoClipShare Uploader 2.6.1 (x64 .dmg, 137 MB)](https://github.com/uotw/SonoClipShareUploader/releases/download/v2.6.1/SonoClipShare.Uploader-2.6.1-x64.dmg) |
-| **Windows 64‑bit** | [SonoClipShare Uploader Setup 2.6.1 (x64 .exe, 104 MB)](https://github.com/uotw/SonoClipShareUploader/releases/download/v2.6.1/SonoClipShare.Uploader.Setup.2.6.1.x64.exe) |
+| **macOS — Apple Silicon** (M1/M2/M3…) | [Download (.dmg)](https://github.com/uotw/SonoClipShareUploader/releases/latest/download/SonoClipShare-Uploader-arm64.dmg) |
+| **macOS — Intel** | [Download (.dmg)](https://github.com/uotw/SonoClipShareUploader/releases/latest/download/SonoClipShare-Uploader-x64.dmg) |
+| **Windows 64‑bit** | [Download (.exe)](https://github.com/uotw/SonoClipShareUploader/releases/latest/download/SonoClipShare-Uploader-Setup-x64.exe) |
 
 macOS builds are signed with a Developer ID and notarized by Apple; the Windows installer is code‑signed — so neither should trigger a security warning. See [all releases](https://github.com/uotw/SonoClipShareUploader/releases) for previous versions and release notes.
 

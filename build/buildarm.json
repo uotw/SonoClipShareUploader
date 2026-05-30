@@ -18,7 +18,7 @@
     "gatekeeperAssess": false,
     "identity": "Core Ultrasound, LLC (6VK3JZ7LRU)",
     "notarize": false,
-    "artifactName": "${productName}-${version}-arm64.${ext}",
+    "artifactName": "SonoClipShare-Uploader-arm64.${ext}",
     "target": {
       "target": "dmg",
       "arch": "arm64"

@@ -14,7 +14,7 @@
     "!**/node_modules/ffprobe-static/bin/win32/ia32/**/*"
   ],
   "win": {
-    "artifactName": "${productName} Setup ${version} x64.${ext}",
+    "artifactName": "SonoClipShare-Uploader-Setup-x64.${ext}",
     "azureSignOptions": {
       "publisherName": "Core Ultrasound, LLC",
       "endpoint": "https://eus.codesigning.azure.net/",
