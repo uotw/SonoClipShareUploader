@@ -135,3 +135,6 @@ dist
 uploadapi.txt
 *_bu.js
 *_bu.json
+
+# local-only context for Claude (not published)
+CLAUDE.md
