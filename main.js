@@ -22,7 +22,8 @@ const {
   app,
   BrowserWindow,
   ipcMain,
-  Menu
+  Menu,
+  shell
 } = require('electron')
 
 // Initialize global variables early - BEFORE any windows are created
@@ -79,6 +80,12 @@ function createmainWindow(token, authWindow) {
   });
 
   mainWindow.setResizable(false);
+
+  // External links open in the user's default browser, not an in-app window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
 
   // and load the index.html of the app.
   mainWindow.loadURL('file://' + __dirname + '/index.html', {
@@ -139,6 +146,13 @@ function createauthWindow() {
     backgroundColor: '#111118', // Fallback color
   });
   authWindow.setResizable(false);
+
+  // Open external links (e.g. the "new version available" banner) in the user's
+  // default browser instead of a cramped in-app Electron window.
+  authWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
 
   // Load your custom loading page first
   authWindow.loadURL(`file://${__dirname}/auth-loading.html`);
