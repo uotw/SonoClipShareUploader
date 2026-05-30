@@ -325,6 +325,7 @@ class FFmpegWrapper {
 
         const args = [
             '-i', inputPath,
+            '-map_metadata', '-1',
             '-vframes', '1',
             '-f', 'image2',
             '-y',

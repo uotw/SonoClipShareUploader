@@ -1,6 +1,8 @@
 # SonoClipShare Uploader
 The purpose of SonoClipShare Uploader is to take ultrasound media in a traditional format (mp4, mov, avi, jpg, bmp, png…), remove any Protected Health Information (PHI) locally on your machine, and upload it to an Archive on [SonoClipShare.com](https://www.SonoClipShare.com). The app lets you log in to your personal SonoClipShare account so any uploaded media shows up in your dashboard. SonoClipShare Uploader is built as an [Electron app](https://electronjs.org/) and includes code from [FFmpeg](https://www.ffmpeg.org/).
 
+> **Metadata is stripped.** Every clip and image is re-encoded locally and **all embedded file metadata is removed** (EXIF/IPTC/XMP and container tags), so identifiers that can live there — patient name, IDs, study dates, device/operator info — are not carried into your uploads. On‑screen (burned‑in) text is removed separately by cropping. As always, **verify your output** — see the [Disclaimer](#disclaimer).
+
 ## Download
 **➡️ [Download the latest release](https://github.com/uotw/SonoClipShareUploader/releases/latest)** (always current), or grab a build directly:
 
