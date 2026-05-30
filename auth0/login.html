@@ -12,26 +12,58 @@
         .auth0-lock.auth0-lock { z-index:100 !important; }
         .auth0-lock-social-button-icon { background-size: 97% !important; }
         .auth0-lock-social-button-text { font-family: 'Roboto', sans-serif !important; }
+        /* Modern floating "update available" toast */
+        #nah { text-decoration: none; }
         #popovermessage {
-          display:none;
-          left:0;
-          font-size:20px;
-          position:fixed;
-          text-align:center;
-          width:100%;
-          background-color:#ff6600;
-          top:0px;
-          z-index:500;
-          color:white;
-          height:2em;
-          line-height:2em;
-          transition: height .5s ease-in-out;
+          position: fixed;
+          top: 18px;
+          left: 50%;
+          z-index: 500;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          max-width: 92%;
+          padding: 11px 14px 11px 20px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);
+          color: #fff;
+          font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+          font-size: 15px;
+          font-weight: 600;
+          letter-spacing: .2px;
+          white-space: nowrap;
+          box-shadow: 0 12px 30px rgba(30, 58, 138, .35), 0 2px 6px rgba(0, 0, 0, .18);
+          cursor: pointer;
+          /* hidden until JS adds .show */
+          opacity: 0;
+          transform: translateX(-50%) translateY(-26px);
+          pointer-events: none;
+          transition: opacity .45s cubic-bezier(.22, 1, .36, 1),
+                      transform .45s cubic-bezier(.22, 1, .36, 1),
+                      box-shadow .2s ease;
+        }
+        #popovermessage.show {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+          pointer-events: auto;
+        }
+        #popovermessage.show:hover {
+          transform: translateX(-50%) translateY(-2px);
+          box-shadow: 0 16px 38px rgba(30, 58, 138, .45), 0 3px 8px rgba(0, 0, 0, .2);
+        }
+        #popovermessage .cta {
+          flex: none;
+          padding: 4px 13px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, .18);
+          font-size: 13px;
+          font-weight: 700;
         }
       </style>
    </head>
    <body>
       <a href="https://github.com/uotw/SonoClipShareUploader#download" id="nah" target="_blank">
-        <div id="popovermessage">There's a new version of the Uploader. Click here to download.</div>
+        <div id="popovermessage"><span>A new version of the Uploader is available</span><span class="cta">Update&nbsp;→</span></div>
       </a>
 
       <script src="https://cdn.auth0.com/js/lock/11.3/lock.min.js"></script>
@@ -107,7 +139,7 @@
               var latest = String(data.version).replace(/^v/i, '');    // "2.6.2"
               if (versionCompare(appVersion, latest) === -1) {         // running older than latest
                 var popover = document.getElementById('popovermessage');
-                if (popover) popover.style.display = 'inline';
+                if (popover) popover.classList.add('show');
               }
             })
             .catch(function () { /* ignore — never block login on the update check */ });
