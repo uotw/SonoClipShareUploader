@@ -694,28 +694,6 @@ html, body {
     will-change: width;
 }
 
-/* Completion effect */
-#myBarUL.upload-complete {
-    background: linear-gradient(45deg, 
-        #4CAF50 0%, 
-        #45a049 25%, 
-        #4CAF50 50%, 
-        #45a049 75%, 
-        #4CAF50 100%);
-    background-size: 200% 200%;
-    animation: success-shimmer 1.2s ease-in-out;
-    box-shadow: 0 0 20px rgba(76, 175, 80, 0.4);
-}
-
-@keyframes success-shimmer {
-    0% {
-        background-position: 200% 0%;
-    }
-    100% {
-        background-position: -200% 0%;
-    }
-}
-
 /* Progress percentage label smooth transition */
 #labelUL {
     transition: color 0.15s ease;
@@ -732,12 +710,12 @@ html, body {
     background-color: #e9ecef;
 }
 
-/* Enhanced pulse during active uploading */
-#myProgressUL.uploading #myBarUL:not(.upload-complete) {
+/* Moving shine sweep during active uploading */
+#myProgressUL.uploading #myBarUL {
     position: relative;
 }
 
-#myProgressUL.uploading #myBarUL:not(.upload-complete)::after {
+#myProgressUL.uploading #myBarUL::after {
     content: '';
     position: absolute;
     top: 0;
@@ -749,17 +727,6 @@ html, body {
         rgba(255,255,255,0.3) 50%, 
         rgba(255,255,255,0) 100%);
     animation: progress-shine 2s ease-in-out infinite;
-}
-
-@keyframes upload-pulse {
-    0%, 100% {
-        opacity: 1;
-        transform: scaleY(1);
-    }
-    50% {
-        opacity: 0.9;
-        transform: scaleY(0.98);
-    }
 }
 
 @keyframes progress-shine {

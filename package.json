@@ -9,7 +9,6 @@
     "pack": "electron-builder --dir",
     "dist-macarm": "electron-builder --config ./build/buildarm.json",
     "dist-mac64": "electron-builder --config ./build/buildmac.json",
-    "dist-win32": "electron-builder --win --ia32 --config ./build/buildwin32.json",
     "dist-win64": "electron-builder --win --x64 --config ./build/buildwin64.json",
     "dist-mac-all": "electron-builder --mac --config ./build/build-mac-universal.json"
   },
