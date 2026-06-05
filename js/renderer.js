@@ -295,7 +295,35 @@ function createSmoothProgress(barId, labelId) {
     };
 }
 
-// POST one job (a clip's mp4+thumbnail, or one still) to uploadapp4.php.
+// The gallery thumbnail sizes the website serves from each archive's /thumbs/
+// folder. Generated client-side now (the server keeps a fallback for old apps).
+var THUMB_WIDTHS = [140, 220, 280];
+
+// Generate the multi-size gallery thumbnails from a poster (clip) or still
+// (image), named "<n>.<width>.jpg" so they upload as "NNN_<n>.<width>.jpg" and
+// the server routes them to /thumbs/<NNN>_<width>.jpg. Resolves with the list
+// of files that were produced. A failed size is skipped (non-fatal) — the
+// server regenerates any missing size on its end.
+function makeSizedThumbs(sourceImage, n) {
+	var outputs = [];
+	var chain = Promise.resolve();
+	THUMB_WIDTHS.forEach(function(w) {
+		chain = chain.then(function() {
+			var out = path.join(workdir, n + '.' + w + '.jpg');
+			return ffmpeg.createSizedThumbnail(sourceImage, out, w)
+				.then(function() {
+					outputs.push(out);
+					croppedfilelist.push(out);
+				})
+				.catch(function(e) {
+					console.warn('Sized thumbnail ' + w + 'px failed (server will regenerate):', e.message);
+				});
+		});
+	});
+	return chain.then(function() { return outputs; });
+}
+
+// POST one job (a clip's mp4+thumbnail, or one still) to uploadapp5.php.
 // Files are named "<NNN>_<basename>" (NNN = seqStart+i+1) to match the server's
 // prefix-based ordering. Resolves with the parsed JSON on success.
 function postFilesToServer(files, uploadlink, seqStart) {
@@ -413,8 +441,8 @@ $('#cropbtn').click(function() {
 	finallink = 'https://www.sonoclipshare.com/archive.php?&f=' + folder;
 	var encodedTitle = title ? encodeURIComponent(title) : null;
 	var uploadlink = encodedTitle
-		? 'https://www.sonoclipshare.com/uploadapp4.php?&token=' + currentToken + '&t=' + encodedTitle + '&f=' + folder
-		: 'https://www.sonoclipshare.com/uploadapp4.php?&f=' + folder + '&token=' + currentToken;
+		? 'https://www.sonoclipshare.com/uploadapp5.php?&token=' + currentToken + '&t=' + encodedTitle + '&f=' + folder
+		: 'https://www.sonoclipshare.com/uploadapp5.php?&f=' + folder + '&token=' + currentToken;
 	console.log('Upload target:', (title ? 'NEW archive' : 'existing archive'), '| folder:', folder, '| clips:', filelist.length);
 
 	// Show BOTH progress bars (de-id + upload) at once
@@ -430,8 +458,11 @@ $('#cropbtn').click(function() {
 
 	// Totals: cropping measured in source clips; upload measured in output files
 	var totalSources = filelist.length;
+	// Per source: clip = mp4 + poster + sized thumbs; still = still + sized thumbs.
 	var totalOutputs = 0;
-	for (var t = 0; t < filelist.length; t++) { totalOutputs += isclip(filelist[t]) ? 2 : 1; }
+	for (var t = 0; t < filelist.length; t++) {
+		totalOutputs += (isclip(filelist[t]) ? 2 : 1) + THUMB_WIDTHS.length;
+	}
 	var transcodedSources = 0;
 	var uploadedOutputs = 0;
 	var uploadSeq = 0;
@@ -535,19 +566,21 @@ $('#cropbtn').click(function() {
 				croppedfilelist.push(outfile, thumbnailfile);
 				return ffmpeg.processVideo(srcFile, outfile, cropvftext, { preset: 'medium', crf: '20' })
 					.then(function() { return ffmpeg.createThumbnail(outfile, thumbnailfile); })
-					.then(function() {
+					.then(function() { return makeSizedThumbs(thumbnailfile, nexti); })
+					.then(function(sizedThumbs) {
 						transcodedSources++;
 						cropController.setProgress(Math.min(100, transcodedSources / totalSources * 100));
-						enqueueUpload([outfile, thumbnailfile]);
+						enqueueUpload([outfile, thumbnailfile].concat(sizedThumbs));
 					});
 			} else {
 				var stillfile = path.join(workdir, nexti + '.still.jpg');
 				croppedfilelist.push(stillfile);
 				return ffmpeg.processImage(srcFile, stillfile, cropvftext + ',setsar=1')
-					.then(function() {
+					.then(function() { return makeSizedThumbs(stillfile, nexti); })
+					.then(function(sizedThumbs) {
 						transcodedSources++;
 						cropController.setProgress(Math.min(100, transcodedSources / totalSources * 100));
-						enqueueUpload([stillfile]);
+						enqueueUpload([stillfile].concat(sizedThumbs));
 					});
 			}
 		});

@@ -335,6 +335,26 @@ class FFmpegWrapper {
         return this.exec(args, options);
     }
 
+    // Generate a downscaled gallery thumbnail at a target width (height auto,
+    // kept even by -2). Mirrors the server's old createThumbnails() profile
+    // (scale=<width>:-2, -q:v 3) so the 140/220/280px sizes the website expects
+    // are now produced client-side. Metadata is stripped like every artifact.
+    async createSizedThumbnail(inputPath, outputPath, width, options = {}) {
+        await this.initPromise;
+
+        const args = [
+            '-i', inputPath,
+            '-map_metadata', '-1',
+            '-vf', 'scale=' + width + ':-2',
+            '-q:v', '3',            // matches the server's thumbnail quality
+            '-f', 'image2',
+            '-y',
+            outputPath
+        ];
+
+        return this.exec(args, options);
+    }
+
     // Process a standalone image with cropping + metadata removal.
     async processImage(inputPath, outputPath, cropFilter, options = {}) {
         await this.initPromise;
