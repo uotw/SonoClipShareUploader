@@ -23,7 +23,8 @@ const {
   BrowserWindow,
   ipcMain,
   Menu,
-  shell
+  shell,
+  nativeTheme
 } = require('electron')
 
 // Initialize global variables early - BEFORE any windows are created
@@ -143,9 +144,28 @@ function createauthWindow() {
   authWindow = new BrowserWindow({
     width: 1100,
     height: 750,
-    backgroundColor: '#111118', // Fallback color
+    backgroundColor: '#ffffff',
   });
   authWindow.setResizable(false);
+
+  // Apple's "Sign in with Apple" page ignores nativeTheme in the embedded view and
+  // follows the OS Dark Mode, rendering unreadable dark text. Force the CSS
+  // prefers-color-scheme to light at the renderer level via the DevTools protocol,
+  // and re-apply on every navigation (loading page -> Auth0 -> Apple).
+  try {
+    authWindow.webContents.debugger.attach('1.3');
+    var forceLight = function () {
+      try {
+        authWindow.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+          features: [{ name: 'prefers-color-scheme', value: 'light' }]
+        });
+      } catch (e) {}
+    };
+    forceLight();
+    authWindow.webContents.on('did-start-navigation', forceLight);
+    authWindow.webContents.on('did-navigate', forceLight);
+    authWindow.webContents.on('did-navigate-in-page', forceLight);
+  } catch (e) {}
 
   // Open external links (e.g. the "new version available" banner) in the user's
   // default browser instead of a cramped in-app Electron window.
@@ -180,6 +200,11 @@ function createauthWindow() {
 // Some APIs can only be used after this event occurs.
 //app.on('ready', createmainWindow)
 app.on("ready", function() {
+  // Force light appearance so the embedded Apple "Sign in with Apple" / Auth0 web
+  // pages (which follow prefers-color-scheme) render readable instead of a dim dark
+  // theme when macOS is in Dark Mode. The uploader's own UI uses fixed colors, so
+  // this only affects the embedded auth pages.
+  nativeTheme.themeSource = 'light';
   createauthWindow();
   var menu = Menu.buildFromTemplate([{
     label: 'Menu',
