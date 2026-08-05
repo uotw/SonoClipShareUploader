@@ -239,6 +239,49 @@ if (!empty($_FILES)) {
             error_log("ERROR: Archive creation MySQL Error Number: " . $conn->errno);
         }
     } else {
+        // EXISTING ARCHIVE — may this user add to it?
+        //
+        // Nothing checked until now. The archive is found by folder alone, so
+        // any valid token could append to any archive whose 10-character id it
+        // knew; it was never reachable from the UI because the app only ever
+        // offered your own archives. The picker now offers archives shared WITH
+        // you, which makes cross-user upload a feature, so the rule has to be
+        // stated rather than assumed: you may add to an archive you own, or to
+        // one that has been shared with you.
+        //
+        // `shared` carries no write-permission column, so a share IS the
+        // permission. Fails closed — a prepare error denies.
+        $existing = $result->fetch_assoc();
+        $owner = isset($existing['user_id']) ? $existing['user_id'] : '';
+
+        if ($owner !== $userid) {
+            $allowed = false;
+            $accessStmt = $conn->prepare(
+                'SELECT 1 FROM shared WHERE archive_folder = ? AND receiver_user_id = ? LIMIT 1'
+            );
+            if ($accessStmt) {
+                $accessStmt->bind_param('ss', $folder, $userid);
+                $accessStmt->execute();
+                $allowed = (bool) $accessStmt->get_result()->fetch_row();
+                $accessStmt->close();
+            } else {
+                error_log("ERROR: access check prepare failed: " . $conn->error);
+            }
+
+            if (!$allowed) {
+                error_log("SECURITY: user $userid tried to upload into $folder, owned by $owner");
+                header('Content-Type: application/json');
+                http_response_code(403);
+                echo json_encode([
+                    'status'  => 'error',
+                    'message' => 'You do not have access to that archive',
+                ]);
+                exit();
+            }
+
+            error_log("DEBUG: $userid uploading into archive $folder shared by $owner");
+        }
+
         $archive_created = true;
         error_log("DEBUG: Found existing archive for folder: $folder");
     }
@@ -370,6 +413,38 @@ if (!empty($_FILES)) {
         }
 
         error_log("DEBUG: File $uploadedName - needs_scan_entry: " . ($needs_scan_entry ? 'YES' : 'NO') . ", scan_type: '$scan_type', final_filename: $final_filename");
+
+        // scan_id comes straight off the client's filename prefix (above), so
+        // the client is the only thing keeping two batches from claiming the
+        // same id. 2.6.7+ starts its prefixes at the archive's existing
+        // MAX(scan_id), which archivesapp.php hands it as `next_scan`; a
+        // collision here therefore means an older client that restarts at 001,
+        // or two people appending to one shared archive in the same instant.
+        // Either way move_uploaded_file() below is about to overwrite live
+        // media and the scans INSERT is about to duplicate a row. Reported
+        // rather than fixed: silently renumbering would break the chunked
+        // uploads this client sends, which carry a running prefix across
+        // several requests.
+        // Tested by exact id rather than against MAX(scan_id): this client
+        // uploads its chunks four at a time and they commit out of order, so
+        // "lower than the highest so far" would cry collision on a perfectly
+        // ordered session. Only a row that is actually already there counts.
+        if ($needs_scan_entry) {
+            $dupStmt = $conn->prepare('SELECT 1 FROM scans WHERE archive_folder = ? AND scan_id = ? LIMIT 1');
+            if ($dupStmt) {
+                $dupStmt->bind_param('si', $folder, $scan_id);
+                $dupStmt->execute();
+                if ($dupStmt->get_result()->fetch_row()) {
+                    $collision = "SCAN_ID COLLISION: $uploadedName claims scan_id $scan_id, already present in $folder (max $current_scan_id) — overwriting";
+                    error_log($collision);
+                    $errors[] = $collision;
+                    $debug_info[] = $collision;
+                }
+                $dupStmt->close();
+            } else {
+                error_log("ERROR: collision check prepare failed: " . $conn->error);
+            }
+        }
 
         // Move file to final location
         $finalPath = $storeFolder . '/' . $final_filename;

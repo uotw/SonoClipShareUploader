@@ -1,0 +1,208 @@
+/* The "add to an existing Archive" picker.
+ *
+ * Replaces the <select> that style.css/select.css dressed up: that listed only
+ * your own archives, all of them, in one <option> per line. This one searches
+ * server-side and pages, and has to distinguish an archive you own from one
+ * somebody shared with you -- which an <option> cannot do.
+ *
+ * Sizing is fixed rather than fluid on purpose: main.js creates a
+ * non-resizable 1100x750 window (780 on Windows), and #addselect is centred by
+ * translate(-50%,-50%), so the list height is what keeps the OK button on
+ * screen on the shorter of the two.
+ */
+
+#addselect {
+    width: 720px;
+    font-size: 1em;
+    line-height: 1.35;
+    /* Nudged down from style.css's dead centre: this block is ~500px tall, so
+     * centring puts its heading against the app title on the 750px window. */
+    top: 53%;
+    /* Opaque, because it is wide enough to sit over the signed-in email in
+     * #profilestatus, which is fixed to the left edge. */
+    padding: 14px;
+    background: #fff;
+    border-radius: 6px;
+}
+
+#addselectmessage {
+    font-size: 1.4em;
+    margin-bottom: 14px;
+}
+
+/* ---- search + scope --------------------------------------------------- */
+
+#pickerhead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+#archivesearch {
+    flex: 1 1 auto;
+    font-size: 1.1em;
+    padding: 9px 12px;
+    border: 1px solid #c8c8c8;
+    border-radius: 4px;
+    background: #fff;
+}
+
+#scopetabs {
+    display: flex;
+    flex: 0 0 auto;
+    border: 1px solid #c8c8c8;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.scopetab {
+    font-size: .85em;
+    padding: 9px 12px;
+    border: 0;
+    border-left: 1px solid #e0e0e0;
+    background: #fff;
+    color: #444;
+}
+
+.scopetab:first-child { border-left: 0; }
+
+.scopetab:hover { background: #f2f2f2; }
+
+.scopetab.is-active {
+    background: #000099;
+    color: #fff;
+}
+
+/* ---- the list --------------------------------------------------------- */
+
+#archivelist {
+    height: 330px;
+    overflow-y: auto;
+    border: 1px solid #d8d8d8;
+    border-radius: 4px;
+    background: #fff;
+    text-align: left;
+}
+
+.arow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.arow:last-child { border-bottom: 0; }
+
+.arow:hover { background: #f5f5f5; }
+
+.arow.is-selected {
+    background: #000099;
+    color: #fff;
+}
+
+.arow.is-selected .asub,
+.arow.is-selected .abadge {
+    color: #d8d8ff;
+}
+
+.athumb {
+    flex: 0 0 auto;
+    width: 72px;
+    height: 54px;
+    border-radius: 3px;
+    background: #e8e8e8 no-repeat center center;
+    background-size: cover;
+}
+
+/* No surviving scan, or the host has no signing secret -- see
+ * scs_archives_thumb() in server/archivesapp.php. */
+.athumb.is-empty {
+    background-image: none;
+}
+
+.ameta {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.atitle {
+    font-size: 1.05em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.asub {
+    font-size: .8em;
+    color: #777;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.abadge {
+    flex: 0 0 auto;
+    font-size: .75em;
+    color: #666;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+}
+
+.abadge.is-shared::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: #e08000;
+    vertical-align: middle;
+}
+
+#archivestatus {
+    font-size: .8em;
+    color: #777;
+    min-height: 18px;
+    margin: 6px 2px 0;
+    text-align: left;
+}
+
+#pickeractions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+#pickeractions button {
+    width: 200px;
+    height: 50px;
+    font-size: .9em;
+    margin-top: 0;
+}
+
+#okselect[disabled] {
+    opacity: .45;
+    cursor: default;
+}
+
+/* ---- "adding to <archive>" on the file-drop step ----------------------- */
+
+#addtarget {
+    display: none;
+    font-size: .9em;
+    color: #555;
+    text-align: center;
+    margin-bottom: 6px;
+}
+
+#addtarget .abadge.is-shared {
+    display: inline;
+    max-width: none;
+}

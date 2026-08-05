@@ -10,6 +10,7 @@
 <link rel="stylesheet" type="text/css" href="./css/style.css">
 <link rel="stylesheet" type="text/css" href="./css/flatbuttons.css">
 <link rel="stylesheet" type="text/css" href="./css/select.css">
+<link rel="stylesheet" type="text/css" href="./css/picker.css">
   </head>
 <body>
  <div id="maintitle"><img src="./img/mainlogo.png" id="logo"></img><h1>SonoClipShare Uploader</h1></div>
@@ -22,6 +23,7 @@
 	<div id="home"><img src="./img/home.png"></div>
 	<input type="submit" class="btn-login" />
 	<div id="filelistwrap">
+		<div id="addtarget"></div>
 		<div id="addfilestatus"></div>
 		<div id="drag">Drop your clips and stills here</div>
 		<div id="filelist"></div>
@@ -58,13 +60,21 @@
 		</div>
 	</div>
 	<div id="addselect">
-		<div id="addselectmessage">Select one of your Archives</div>
-		<label id="lblSelect">
-		       <select id="myarchives" size="1">
-                                <option value="Select">Select</option>
-                       </select>
-		</label>
-		<div style="text-align:center;"><button id="okselect" class="btn btn-outlined btn-black btn-lg">OK</button></div>
+		<div id="addselectmessage">Add to an existing Archive</div>
+		<div id="pickerhead">
+			<input id="archivesearch" type="text" placeholder="Search archives by title" autocomplete="off" spellcheck="false">
+			<div id="scopetabs">
+				<button type="button" class="scopetab is-active" data-scope="all">All</button>
+				<button type="button" class="scopetab" data-scope="mine">Mine</button>
+				<button type="button" class="scopetab" data-scope="shared">Shared with me</button>
+			</div>
+		</div>
+		<div id="archivelist"></div>
+		<div id="archivestatus"></div>
+		<div id="pickeractions">
+			<button id="cancelselect" class="btn btn-outlined btn-black btn-lg">Cancel</button>
+			<button id="okselect" class="btn btn-outlined btn-black btn-lg" disabled>OK</button>
+		</div>
 	</div>
 	<div id="newtitle">
 		<div id="newtitlemessage">Give your new Archive a title</div>

@@ -400,9 +400,15 @@ function progressend(uploadResponse) {
 
 		filelist = [];
 		$('#filelist').html('');
+		$('#addtarget').hide();
 		$('#drag').css('visibility', 'visible');
 		addfilestatus();
 		$('#home').fadeIn();
+
+		// The next upload picks its own destination. Leaving these set would
+		// carry this archive's scan offset into a brand-new one.
+		selectedArchive = null;
+		existingScanOffset = 0;
 		
 		// Reset progress bar
 		$('#myBarUL').css('width', '0');
@@ -465,6 +471,10 @@ $('#cropbtn').click(function() {
 	}
 	var transcodedSources = 0;
 	var uploadedOutputs = 0;
+	// Per-session, and deliberately NOT offset: this is the "NNN_" prefix, which
+	// only orders the files within one request, and the server's parser wants
+	// exactly three digits. The scan_id offset rides on the artifact basename
+	// instead — see `nexti` in the transcode loop below.
 	var uploadSeq = 0;
 	var pipelineError = null;
 
@@ -546,7 +556,17 @@ $('#cropbtn').click(function() {
 	filelist.forEach(function(srcFile, i) {
 		chain = chain.then(function() {
 			if (pipelineError) return;
-			var nexti = i + 1;
+			// THIS number becomes the scan_id. uploadapp5.php parses
+			// "NNN_<n>.<rest>" and takes <n> — the artifact basename, not the
+			// NNN ordering prefix — so continuing an existing archive means
+			// starting <n> after its highest scan. archivesapp.php supplies
+			// that as `next_scan`; it is 0 for a new archive, giving 1, 2, 3…
+			// exactly as before.
+			//
+			// Restarting at 1 instead is what overwrote 001.mp4 and inserted a
+			// duplicate scans row on every append — harmless-looking on your
+			// own archive, and destroying somebody else's media on a shared one.
+			var nexti = existingScanOffset + i + 1;
 			var croppixel = croppixelarr[i];
 			var cropvftext;
 			if (!window.cropW) {
@@ -775,53 +795,247 @@ function addfilestatus() {
 	$('#addfilestatus').show();
 }
 
+// ---- "add to an existing Archive" picker ------------------------------------
+//
+// Backed by archivesapp.php, which lists the archives you own AND the ones
+// other people have shared with you, searched and paged server-side. The old
+// myarchivesapp.php <select> could do neither: it returned every archive you
+// own in one unfiltered array, and had no way to express "this one is Jane's".
+//
+// The picker carries `next_scan` through to the upload. uploadapp5.php takes
+// scan_id straight from the NNN_ filename prefix, so appending to an archive
+// that already has 7 scans while numbering from 001 overwrites 001.mp4 and
+// duplicates its scans row. See uploadSeq in the upload handler.
+
+var ARCHIVES_ENDPOINT = 'https://www.sonoclipshare.com/archivesapp.php';
+var PICKER_PAGE_SIZE = 30;
+
+var selectedArchive = null;    // the row the user picked, or null
+var existingScanOffset = 0;    // where this upload's NNN_ prefixes start
+
+var picker = {
+	q: '',
+	scope: 'all',
+	page: 0,
+	total: 0,
+	loaded: 0,
+	loading: false,
+	req: null,
+	searchTimer: null
+};
+
+function esc(s) {
+	return String(s === null || s === undefined ? '' : s)
+		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// "2026-08-01 14:22:05" -> "Aug 1, 2026". Parsed as local time (the T form is
+// what Chromium wants; the bare space form is implementation-defined).
+function prettyDate(mysqlDate) {
+	if (!mysqlDate) { return ''; }
+	var d = new Date(String(mysqlDate).replace(' ', 'T'));
+	if (isNaN(d.getTime())) { return String(mysqlDate); }
+	return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function countsLabel(a) {
+	var parts = [];
+	if (a.mp4) { parts.push(a.mp4 + (a.mp4 === 1 ? ' clip' : ' clips')); }
+	if (a.jpg) { parts.push(a.jpg + (a.jpg === 1 ? ' still' : ' stills')); }
+	return parts.length ? parts.join(', ') : 'empty';
+}
+
+function ownerLabel(a) {
+	if (a.scope !== 'shared') { return ''; }
+	return 'Shared by ' + (a.owner_name || a.owner_email || 'someone else');
+}
+
+function archiveRow(a) {
+	var thumb = a.thumb
+		? '<div class="athumb" style="background-image:url(\'' + esc(a.thumb) + '\')"></div>'
+		: '<div class="athumb is-empty"></div>';
+	var badge = a.scope === 'shared'
+		? '<div class="abadge is-shared">' + esc(ownerLabel(a)) + '</div>'
+		: '';
+
+	return $('<div class="arow"></div>')
+		.attr('data-folder', a.folder)
+		.data('archive', a)
+		.html(
+			thumb +
+			'<div class="ameta">' +
+				'<div class="atitle">' + esc(a.title || '(untitled)') + '</div>' +
+				'<div class="asub">' + esc(prettyDate(a.date)) + ' &middot; ' + esc(countsLabel(a)) + '</div>' +
+			'</div>' +
+			badge
+		);
+}
+
+function setPickerStatus(text) {
+	$('#archivestatus').text(text || '');
+}
+
+function selectArchiveRow($row) {
+	$('#archivelist .arow').removeClass('is-selected');
+	if (!$row || !$row.length) {
+		selectedArchive = null;
+		$('#okselect').prop('disabled', true);
+		return;
+	}
+	$row.addClass('is-selected');
+	selectedArchive = $row.data('archive');
+	$('#okselect').prop('disabled', false);
+
+	// Keep the selection visible when it moved by keyboard.
+	var el = $row[0];
+	if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'nearest' }); }
+}
+
+// Load one page. reset = start over (new search or scope).
+function loadArchives(reset) {
+	var currentToken = checkToken();
+	if (!currentToken) {
+		setPickerStatus('Not signed in — restart the app and log in again.');
+		return;
+	}
+	if (picker.loading) {
+		if (!reset) { return; }
+		if (picker.req) { picker.req.abort(); }
+	}
+
+	if (reset) {
+		picker.page = 0;
+		picker.loaded = 0;
+		picker.total = 0;
+		$('#archivelist').empty().scrollTop(0);
+		selectArchiveRow(null);
+	}
+
+	picker.loading = true;
+	setPickerStatus(picker.page === 0 ? 'Loading archives…' : 'Loading more…');
+
+	picker.req = $.ajax({
+		cache: false,
+		url: ARCHIVES_ENDPOINT,
+		dataType: 'json',
+		type: 'GET',
+		data: {
+			token: currentToken,
+			q: picker.q,
+			scope: picker.scope,
+			page: picker.page + 1,
+			limit: PICKER_PAGE_SIZE
+		}
+	}).done(function(response) {
+		picker.loading = false;
+		if (!response || response.status !== 'success') {
+			setPickerStatus('Could not load archives' + (response && response.message ? ': ' + response.message : '.'));
+			return;
+		}
+
+		picker.page = response.page;
+		picker.total = response.total;
+		picker.loaded += response.archives.length;
+
+		var $list = $('#archivelist');
+		response.archives.forEach(function(a) { $list.append(archiveRow(a)); });
+
+		if (picker.total === 0) {
+			setPickerStatus(picker.q
+				? 'No archives match “' + picker.q + '”.'
+				: (picker.scope === 'shared'
+					? 'Nobody has shared an archive with you yet.'
+					: 'You have no archives yet — go back and create one.'));
+		} else {
+			setPickerStatus('Showing ' + picker.loaded + ' of ' + picker.total +
+				(picker.loaded < picker.total ? ' — scroll for more' : ''));
+		}
+	}).fail(function(xhr, status) {
+		picker.loading = false;
+		if (status === 'abort') { return; }   // superseded by a newer search
+		console.error('Archive list failed:', status, xhr && xhr.status, xhr && xhr.responseText);
+		setPickerStatus(xhr && xhr.status === 401
+			? 'Session expired — restart the app and log in again.'
+			: 'Could not reach SonoClipShare. Check your connection and try again.');
+	});
+}
+
+function openArchivePicker() {
+	picker.q = '';
+	picker.scope = 'all';
+	$('#archivesearch').val('');
+	$('.scopetab').removeClass('is-active').filter('[data-scope="all"]').addClass('is-active');
+	$('#addselect').fadeIn();
+	$('#archivesearch').focus();
+	loadArchives(true);
+}
+
 $('#add').click(function() {
 	$('#finallinkwrap').hide();
 	$('#addornew').hide();
-	loadmyarchives();
+	openArchivePicker();
 });
 
-function loadmyarchives() {
-	var currentToken = checkToken();
-	if (!currentToken) {
-		$('#loading-container').hide();
-		alert('Authentication token not available. Please restart the app.');
+// Server-side search, so debounce rather than filter a list we don't fully have.
+$('#archivesearch').on('input', function() {
+	var value = $(this).val();
+	clearTimeout(picker.searchTimer);
+	picker.searchTimer = setTimeout(function() {
+		picker.q = value.trim();
+		loadArchives(true);
+	}, 250);
+});
+
+$('.scopetab').click(function() {
+	var scope = $(this).data('scope');
+	if (scope === picker.scope) { return; }
+	$('.scopetab').removeClass('is-active');
+	$(this).addClass('is-active');
+	picker.scope = scope;
+	loadArchives(true);
+});
+
+$('#archivelist').on('scroll', function() {
+	if (picker.loading || picker.loaded >= picker.total) { return; }
+	var el = this;
+	if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+		loadArchives(false);
+	}
+});
+
+$('#archivelist').on('click', '.arow', function() {
+	selectArchiveRow($(this));
+});
+
+$('#archivelist').on('dblclick', '.arow', function() {
+	selectArchiveRow($(this));
+	$('#okselect').click();
+});
+
+// Arrow keys move the selection without leaving the search box, so a search can
+// be typed and its first hit chosen without touching the mouse.
+$('#addselect').on('keydown', function(e) {
+	if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') { return; }
+
+	if (e.key === 'Enter') {
+		if (selectedArchive) { $('#okselect').click(); }
 		return;
 	}
-	
-	$('#loading-text').hide();
-	$('#loading-container').show();
-	$('#myarchives').html('<option value="Select">Select</option>');
-	var url = "https://www.sonoclipshare.com/myarchivesapp.php?&token=" + currentToken;
-	
-	$.ajax({
-		cache: false,
-		url: url,
-		data: {},
-		dataType: 'json',
-		type: 'GET',
-		async: true,
-		success: function(response) {
-			$('#loading-text').show();
-			$('#loading-container').hide();
-			if (response != null) {
-				for (var item in response) {
-					if (response.hasOwnProperty(item)) {
-						var nextitem = 'archive#' + response[item].archive + ' , ' + response[item].date + ' , ' + response[item].title;
-						var folder = response[item].folder;
-						$('#myarchives').append('<option value=' + folder + '>' + nextitem + '</option>');
-					}
-				}
-			} else {
-				$('#newtitlemessage').html('Give your first Archive a title');
-			}
-			$('#addselect').fadeIn();
-		},
-		error: function() {
-			console.log("ERROR w/ AJAX!");
-		}
-	});
-}
+
+	e.preventDefault();
+	var $rows = $('#archivelist .arow');
+	if (!$rows.length) { return; }
+
+	var index = $rows.index($rows.filter('.is-selected'));
+	if (index < 0) {
+		selectArchiveRow($rows.first());
+		return;
+	}
+	var next = (e.key === 'ArrowDown') ? index + 1 : index - 1;
+	if (next < 0 || next >= $rows.length) { return; }
+	selectArchiveRow($rows.eq(next));
+});
 
 $('#new').click(function() {
 	$('#thetitle').val('');
@@ -836,6 +1050,9 @@ $('#oktitle').click(function() {
 	title = title.trim();
 	folder = maketemp();
 	if (title.length > 0) {
+		selectedArchive = null;
+		existingScanOffset = 0;   // a new archive starts at scan 001
+		$('#addtarget').hide();
 		$('#newtitle').hide();
 		$('#filelistwrap').fadeIn();
 		console.log("Creating archive with title/folder: " + title + '/' + folder);
@@ -843,11 +1060,33 @@ $('#oktitle').click(function() {
 });
 
 $('#okselect').click(function() {
-	folder = $('#myarchives').val();
-	if (folder != 'Select') {
-		$('#addselect').hide();
-		$('#filelistwrap').fadeIn();
-	}
+	if (!selectedArchive) { return; }
+
+	folder = selectedArchive.folder;
+	title = null;   // no &t= — the archive already has one, and it isn't ours to change
+
+	// Continue this archive's scan numbering instead of restarting at 001.
+	// Without it the first clip overwrites 001.mp4 and inserts a duplicate
+	// scans row — which on a shared archive means destroying someone else's
+	// media. See `next_scan` in server/archivesapp.php.
+	existingScanOffset = selectedArchive.next_scan || 0;
+
+	var owner = ownerLabel(selectedArchive);
+	$('#addtarget')
+		.html('Adding to <b>' + esc(selectedArchive.title || '(untitled)') + '</b>' +
+			(owner ? ' <span class="abadge is-shared">' + esc(owner) + '</span>' : ''))
+		.show();
+
+	console.log('Selected archive:', folder, '| scope:', selectedArchive.scope,
+		'| continuing scan numbering from:', existingScanOffset);
+
+	$('#addselect').hide();
+	$('#filelistwrap').fadeIn();
+});
+
+$('#cancelselect').click(function() {
+	$('#addselect').hide();
+	$('#addornew').fadeIn();
 });
 
 // UPDATED: Home button with unified progress cleanup
@@ -896,12 +1135,16 @@ $('#home').click(function() {
 		label.innerHTML = "0%";
 	}
 	
+	$('#addtarget').hide();
+
 	// Reset variables
 	filelist = [];
 	croppedfilelist = [];
 	uploadBatchId = null;
 	title = null;
 	folder = null;
+	selectedArchive = null;
+	existingScanOffset = 0;
 	lastperc = 0;
 	lastpercUL = 0;
 	
