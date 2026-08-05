@@ -131,7 +131,17 @@ Basic Styling
     border: 1px solid transparent;
     border-radius: 0;
     cursor: pointer;
-    display: inline-block;
+    /* inline-FLEX, so the label is centred in the button box rather than
+       positioned by padding. These buttons are given explicit heights
+       (#pickeractions 50px, #oktitle 60px) that are SMALLER than .btn-lg's
+       intrinsic 4+13+22+13+4 = 56px, so the padding was pushing the text past
+       the middle -- visible as a label sitting low in the Cancel/OK row.
+       border-box for the same reason: with content-box those heights were the
+       CONTENT height and the real button was 34px taller than asked. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
     margin-bottom: 0;
     vertical-align: middle;
     white-space: nowrap;
@@ -163,17 +173,23 @@ Basic Styling
     border-color: #6f5499;
 }
 
+/* The only button style the app actually uses (index.html: every button is
+   `btn btn-outlined btn-black btn-lg`). Themed, because "black outline, fills
+   black on hover" is invisible on a #282828 page. The behaviour is preserved
+   in both themes -- outline in the text colour, inverting to a solid fill --
+   rather than being restated per theme. The rest of this file's colour
+   variants are unused and left as they were. */
 .btn-outlined.btn-black {
     background: none;
-    color: #000000;
-	border-color: #000000;
+    color: var(--scs-text);
+	border-color: var(--scs-text);
 }
 
 .btn-outlined.btn-black:hover,
 .btn-outlined.btn-black:active {
-    color: #FFF;
-    background: #000000;
-    border-color: #000000;
+    color: var(--scs-bg);
+    background: var(--scs-text);
+    border-color: var(--scs-text);
 }
 
 .btn-outlined.btn-white {

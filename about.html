@@ -7,6 +7,19 @@
       <!-- Fonts FIRST: style.css resolves --scs-font against it, and without
            this every font-family in there is an invalid declaration. -->
       <link rel="stylesheet" type="text/css" href="css/fonts.css">
+      <link rel="stylesheet" type="text/css" href="css/themes.css">
+      <script>
+        // Same pre-paint read as index.html -- this window opens on top of the
+        // main one and a light flash beside a dark parent is worse here.
+        (function () {
+          try {
+            var Store = require('electron-store');
+            if (new Store().get('theme') === 'classic') {
+              document.documentElement.setAttribute('data-theme', 'classic');
+            }
+          } catch (e) { /* default (dark) stands */ }
+        })();
+      </script>
       <link rel="stylesheet" type="text/css" href="css/style.css">
       <style>
       body{
@@ -15,7 +28,10 @@
       a {
       text-decoration:none;
       }
-      a:link { color: #0099ff; }
+      /* Was #0099ff, which belonged to no theme -- see the same note in the
+         site's tokens.css. The accent moves with the theme; the classic one is
+         greyscale, so a link there reads as emphasis rather than as a colour. */
+      a:link { color: var(--scs-accent); }
    </style>
    <script>
       window.$ = window.jQuery = require('jquery');

@@ -766,8 +766,35 @@ $('#manualbtn').click(function() {
 		var time = new Date().toLocaleString();
 		var timestamp = encodeURI(time);
 		$('#myCanvas').css("background-image", "url(" + previewfile + "?" + timestamp + ")");
-		canvasheight = 500 * canvasaspect;
-		$('#myCanvas').attr('height', canvasheight);
+
+		// AS LARGE AS THE WINDOW ALLOWS, keeping the frame's aspect.
+		//
+		// This was a flat 500px wide, so the thing you have to draw an accurate
+		// crop box on occupied about a third of the window while most of it sat
+		// empty. Fitted to both axes now: 900 wide unless that would make it
+		// taller than the space between the header and the caption + OK button,
+		// in which case the height leads.
+		//
+		// Safe to resize at all because the crop is recorded as a FRACTION of
+		// the canvas (cropselect.v2.js) and applied to the source video's own
+		// dimensions -- the canvas is a ruler, not a coordinate system. What it
+		// does require is that the frame fill the canvas exactly, which is what
+		// `background-size: 100% 100%` in style.css guarantees.
+		var CROP_MAX_W = 900;
+		// 232 = 88 above (header) + ~144 below (caption, gap, and the OK button
+		// fixed at bottom:30px).
+		var cropMaxH = Math.max(240, window.innerHeight - 232);
+
+		var cropW = CROP_MAX_W;
+		var cropH = Math.round(CROP_MAX_W * canvasaspect);
+		if (cropH > cropMaxH) {
+			cropH = cropMaxH;
+			cropW = Math.round(cropMaxH / canvasaspect);
+		}
+
+		$('#myCanvas').attr('width', cropW).attr('height', cropH);
+		$('#canvaswrap').css('width', cropW + 'px');
+		canvasheight = cropH;
 		$('#canvaswrap').fadeIn();
 		$('#highlight').fadeIn();
 		$('#manualOKbtn').fadeIn();
@@ -806,6 +833,56 @@ function addfilestatus() {
 	$('#addfilestatus').html(clipnum + ' clips, ' + stillnum + ' stills added');
 	$('#addfilestatus').show();
 }
+
+// ---- theme ------------------------------------------------------------------
+//
+// Two themes, dark by default. The values live in css/themes.css: dark is
+// :root, classic is [data-theme="classic"] -- so the attribute is only ever
+// SET, never cleared to mean dark, and a window with no script at all still
+// paints dark.
+//
+// The choice is local to this app (electron-store, beside the crop settings)
+// rather than read from users.web_theme on the site. It has to survive being
+// signed out and offline, which is most of the time before an upload starts.
+//
+// index.html applies the stored value in <head>, before the first paint. This
+// only handles changing it.
+
+function currentTheme() {
+	return document.documentElement.getAttribute('data-theme') === 'classic' ? 'classic' : 'dark';
+}
+
+function applyTheme(theme) {
+	var classic = (theme === 'classic');
+
+	if (classic) {
+		document.documentElement.setAttribute('data-theme', 'classic');
+	} else {
+		document.documentElement.removeAttribute('data-theme');
+	}
+
+	// The icon shows what a click GIVES you, not what you are looking at --
+	// the same way the website's nav toggle reads. Font Awesome, like every
+	// other icon in the app; the class carries the glyph.
+	$('#themetoggle')
+		.attr('class', 'fa-solid ' + (classic ? 'fa-moon' : 'fa-sun'))
+		.attr('title', classic ? 'Switch to dark' : 'Switch to classic (light)');
+
+	try {
+		store.set('theme', classic ? 'classic' : 'dark');
+	} catch (e) {
+		// A preference that cannot be written is worth a line in the console
+		// and nothing more; the window is already showing the right thing.
+		console.warn('Could not save theme preference:', e.message);
+	}
+}
+
+$('#themetoggle').click(function () {
+	applyTheme(currentTheme() === 'classic' ? 'dark' : 'classic');
+});
+
+// Sets the glyph and title to match whatever <head> already applied.
+applyTheme(currentTheme());
 
 // ---- "add to an existing Archive" picker ------------------------------------
 //

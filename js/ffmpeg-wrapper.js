@@ -392,13 +392,19 @@ class FFmpegWrapper {
     }
 
     // Create the canvas background used by the manual-crop UI.
+    //
+    // 900 wide, matching CROP_MAX_W in renderer.js. It was 500, which happened
+    // to equal the canvas width exactly -- that coincidence, not any rule, is
+    // what made `background-size: auto` fill the box. The canvas now scales to
+    // the window and the CSS states `background-size: 100% 100%`, so this only
+    // has to be big enough to stay sharp.
     async createCanvasBackground(inputPath, outputPath) {
         await this.initPromise;
 
         const args = [
             '-i', inputPath,
             '-an',
-            '-vf', 'scale=500:-1',
+            '-vf', 'scale=900:-1',
             '-pix_fmt', 'rgb24',
             '-vframes', '1',
             '-f', 'image2',

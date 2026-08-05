@@ -1,0 +1,48 @@
+/* Font Awesome 7.3.0 Free (Solid), self-hosted.
+ *
+ * The same icon set and the same version the website uses -- its
+ * assets/vendor/font-awesome-7.3.0. Only the SOLID face ships here: it is the
+ * only one the app draws from, and the brands/regular/v4compat faces would be
+ * ~140KB of font for zero glyphs.
+ *
+ * Hand-reduced from FA's all.min.css rather than copied whole, because that
+ * file @font-faces all four families -- three of which we do not ship, so it
+ * would request files that are not there on every launch. What remains is the
+ * solid @font-face, the base rule, and one line per icon actually used.
+ *
+ * ADDING AN ICON: find `.fa-<name>{--fa:"\fXXX"}` in the site's all.min.css and
+ * paste that one line in below. FA 7 carries the glyph in a custom property and
+ * a single ::before consumes it, so nothing else needs touching.
+ *
+ * Font: SIL OFL 1.1. CSS: MIT. https://fontawesome.com
+ */
+
+@font-face {
+    font-family: "Font Awesome 7 Free";
+    font-style: normal;
+    font-weight: 900;
+    font-display: block;
+    src: url('../fonts/fa-solid-900.woff2') format('woff2');
+}
+
+.fa-solid {
+    font-family: "Font Awesome 7 Free";
+    font-weight: 900;
+    font-style: normal;
+    font-variant: normal;
+    display: inline-block;
+    line-height: 1;
+    text-align: center;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+}
+
+.fa-solid::before { content: var(--fa); }
+
+/* ---- the icons this app uses ---------------------------------------- */
+
+.fa-upload      { --fa: "\f093"; }   /* add to an existing archive */
+.fa-folder-plus { --fa: "\f65e"; }   /* create a new archive */
+.fa-house       { --fa: "\f015"; }   /* home */
+.fa-sun         { --fa: "\f185"; }   /* theme toggle, in dark */
+.fa-moon        { --fa: "\f186"; }   /* theme toggle, in classic */

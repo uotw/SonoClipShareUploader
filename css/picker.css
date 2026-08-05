@@ -28,14 +28,26 @@
      * across the bottom of the "SonoClipShare Uploader" title. Percentages
      * cannot fix that -- the overlap depends on the panel's HEIGHT, not on the
      * window's. Pinning the top below the header is exact at both window sizes
-     * (750 on mac, 780 on Windows) and leaves the title alone. */
-    top: 150px;
+     * (750 on mac, 780 on Windows) and leaves the title alone.
+     *
+     * 88px matches the drop box and the preview, so all three steps start on
+     * the same line under the header. */
+    top: 88px;
     transform: translate(-50%, 0);
-    /* Opaque, because it is wide enough to sit over the signed-in email in
-     * #profilestatus, which is fixed to the left edge. */
+    /* Opaque so the step underneath does not show through the panel. (An
+     * earlier version of this comment blamed #profilestatus; that block is
+     * dead markup -- nothing populates #name/#email/#avatar -- and it was only
+     * ever visible in a test harness that filled it in.) */
     padding: 14px;
-    background: #fff;
+    background: var(--scs-surface);
     border-radius: 6px;
+    /* A DRAWN edge, because in classic the panel and the page are both #fff.
+       Dark gets its box for free -- --scs-surface #2f2f2f against a #282828
+       page is a visible step -- so the panel read as a floating list on white
+       and as a panel on dark. The border states the edge in both, and the
+       shadow only shows where there is contrast for it to fall on. */
+    border: 1px solid var(--scs-border-strong);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.10);
 }
 
 #addselectmessage {
@@ -57,15 +69,16 @@
     flex: 1 1 auto;
     font-size: 1.1em;
     padding: 9px 12px;
-    border: 1px solid #c8c8c8;
+    border: 1px solid var(--scs-border-strong);
     border-radius: 4px;
-    background: #fff;
+    background: var(--scs-surface-raised);
+    color: var(--scs-text);
 }
 
 #scopetabs {
     display: flex;
     flex: 0 0 auto;
-    border: 1px solid #c8c8c8;
+    border: 1px solid var(--scs-border-strong);
     border-radius: 4px;
     overflow: hidden;
 }
@@ -74,30 +87,39 @@
     font-size: .85em;
     padding: 9px 12px;
     border: 0;
-    border-left: 1px solid #e0e0e0;
-    background: #fff;
-    color: #444;
+    border-left: 1px solid var(--scs-border);
+    background: var(--scs-surface-raised);
+    color: var(--scs-text-secondary);
 }
 
 .scopetab:first-child { border-left: 0; }
 
-.scopetab:hover { background: #f2f2f2; }
+.scopetab:hover { background: var(--scs-surface-hover); }
 
 /* Greyscale, like the rest of the app. This was #000099, the only saturated
    colour in the uploader, and it read as a different product. */
 .scopetab.is-active {
-    background: #2b2b2b;
-    color: #fff;
+    background: var(--scs-accent);
+    color: var(--scs-text-on-accent);
 }
 
 /* ---- the list --------------------------------------------------------- */
 
 #archivelist {
-    height: 330px;
+    /* Fills whatever is left, so the panel ends 33px above the bottom -- the
+       same gap the drop box and the preview leave, and the same one on its
+       own sides. 328 = 88 (top) + 33 (bottom) + 207, where 207 is the panel's
+       own chrome: padding, heading, search row, status line and buttons.
+       MEASURED, not guessed (panel 539 - list 332 with the old fixed height);
+       re-measure it if anything is added to or removed from the panel.
+
+       calc against vh rather than a second fixed height, because the window is
+       750 tall on mac and 780 on Windows -- one number cannot serve both. */
+    height: calc(100vh - 328px);
     overflow-y: auto;
-    border: 1px solid #d8d8d8;
+    border: 1px solid var(--scs-border);
     border-radius: 4px;
-    background: #fff;
+    background: var(--scs-surface);
     text-align: left;
 }
 
@@ -106,13 +128,13 @@
     align-items: center;
     gap: 12px;
     padding: 8px 10px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--scs-border);
     cursor: pointer;
 }
 
 .arow:last-child { border-bottom: 0; }
 
-.arow:hover { background: #f5f5f5; }
+.arow:hover { background: var(--scs-surface-hover); }
 
 /* Selected reads as a TINT plus a marker, not as a filled black slab.
  *
@@ -126,12 +148,12 @@
  * unambiguous at a glance. Text colours are left alone, which is why the
  * light-on-dark overrides that used to live here are gone. */
 .arow.is-selected {
-    background: #e4e4e4;
-    box-shadow: inset 4px 0 0 #4a4a4a;
+    background: var(--scs-selected-bg);
+    box-shadow: inset 4px 0 0 var(--scs-selected-bar);
 }
 
 .arow.is-selected:hover {
-    background: #dcdcdc;
+    filter: brightness(1.08);
 }
 
 .athumb {
@@ -139,7 +161,7 @@
     width: 72px;
     height: 54px;
     border-radius: 3px;
-    background: #e8e8e8 no-repeat center center;
+    background: var(--scs-inset) no-repeat center center;
     background-size: cover;
 }
 
@@ -163,7 +185,7 @@
 
 .asub {
     font-size: .8em;
-    color: #777;
+    color: var(--scs-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -172,7 +194,7 @@
 .abadge {
     flex: 0 0 auto;
     font-size: .75em;
-    color: #666;
+    color: var(--scs-text-muted);
     max-width: 200px;
     white-space: nowrap;
     overflow: hidden;
@@ -188,13 +210,13 @@
     margin-right: 5px;
     border-radius: 50%;
     background: transparent;
-    border: 1.5px solid #888;
+    border: 1.5px solid var(--scs-text-muted);
     vertical-align: middle;
 }
 
 #archivestatus {
     font-size: .8em;
-    color: #777;
+    color: var(--scs-text-muted);
     min-height: 18px;
     margin: 6px 2px 0;
     text-align: left;
@@ -223,11 +245,11 @@
 
 /* A LEGEND ON THE DROP BOX'S BORDER, and out of flow on purpose.
  *
- * #filelistwrap is a fixed 430px box whose children are hand-tuned to that
- * exact number: #drag centres its text with line-height:430px, and #filelist
- * is pulled back over it with margin-top:-430px. Any element added to that
- * flow pushes both down by its own height, so the drop text drifted off centre
- * and the bottom of the 430px block spilled past the dashed border.
+ * #filelistwrap WAS a fixed 430px box whose children were hand-tuned to that
+ * exact number, so adding this to its flow pushed them down and out of the
+ * box. (It fills its space by position now, and #drag/#filelist with it -- but
+ * the caption still stays out of flow, because it belongs on the edge of the
+ * box rather than inside it.)
  *
  * position:absolute keeps the height at zero. It rides just ABOVE the border
  * rather than on it: #addfilestatus ("N clips, M stills added") is the first
@@ -241,21 +263,19 @@
     transform: translateX(-50%);
     max-width: 90%;
     padding: 0 12px;
-    background: #fff;
+    background: var(--scs-bg);
     font-size: .9em;
-    color: #555;
+    color: var(--scs-text-secondary);
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-/* The absolute positioning above needs a positioned ancestor, or it would
- * resolve against the viewport. #filelistwrap sets no offsets of its own, so
- * this changes nothing else about it. */
-#filelistwrap {
-    position: relative;
-}
+/* #filelistwrap is position:absolute in style.css now, so it is already a
+ * positioned ancestor for the caption above -- and this file loads AFTER
+ * style.css, so re-declaring `position: relative` here would override that
+ * and undo the drop box's layout. Nothing to add. */
 
 #addtarget .abadge.is-shared {
     display: inline;

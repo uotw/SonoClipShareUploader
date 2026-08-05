@@ -9,20 +9,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <!-- Fonts FIRST: it defines the --scs-font tokens the others resolve against. -->
 <link rel="stylesheet" type="text/css" href="./css/fonts.css">
+<link rel="stylesheet" type="text/css" href="./css/icons.css">
+<link rel="stylesheet" type="text/css" href="./css/themes.css">
+<script>
+  // BEFORE THE FIRST PAINT, and before renderer.js exists.
+  //
+  // Dark is the CSS default, so a classic user would otherwise get a dark
+  // window for as long as it takes the body scripts to load and flip it --
+  // a flash of the wrong theme on every launch. electron-store reads
+  // synchronously, which is what makes doing it here possible at all.
+  //
+  // Wrapped in try/catch because a failure to read a PREFERENCE must never be
+  // the thing that stops the app from rendering; the default theme is a
+  // perfectly good fallback.
+  (function () {
+    try {
+      var Store = require('electron-store');
+      if (new Store().get('theme') === 'classic') {
+        document.documentElement.setAttribute('data-theme', 'classic');
+      }
+    } catch (e) { /* default (dark) stands */ }
+  })();
+</script>
 <link rel="stylesheet" type="text/css" href="./css/style.css">
 <link rel="stylesheet" type="text/css" href="./css/flatbuttons.css">
 <link rel="stylesheet" type="text/css" href="./css/select.css">
 <link rel="stylesheet" type="text/css" href="./css/picker.css">
   </head>
 <body>
- <div id="maintitle"><img src="./img/mainlogo.png" id="logo"></img><h1>SonoClipShare Uploader</h1></div>
+ <div id="maintitle"><div id="logo"></div><h1>SonoClipShare Uploader</h1></div>
     <div id="profilestatus">
       <img id="avatar" style="width: 75px; float: left;">
       <h3 id="name"></h3>
       <h3 id="email"></h3>
     </div>
 
-	<div id="home"><img src="./img/home.png"></div>
+	<div id="themetoggle" title="Switch theme"></div>
+	<div id="home"><i class="fa-solid fa-house"></i></div>
 	<input type="submit" class="btn-login" />
 	<div id="filelistwrap">
 		<div id="addtarget"></div>
@@ -52,12 +75,12 @@
         </div>
 	<div id="addornew">
 		<div id="add">
-			<img id="addtoimg" src="./img/addtoarchive.png"></img>
+			<i id="addtoimg" class="fa-solid fa-upload"></i>
 			<div id="addmessage">Add to an existing Archive</div>
 		</div>
 		<div id="or">Or</div>
 		<div id="new">
-			<img id="newimg" src = "./img/newarchive.png"></img>
+			<i id="newimg" class="fa-solid fa-folder-plus"></i>
 			<div id="newmessage">Create a new Archive</div>
 		</div>
 	</div>

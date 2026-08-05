@@ -1,0 +1,136 @@
+/* Themes: dark (default) and classic.
+ *
+ * DARK IS :root, classic is the override -- the same way sonoclipshare.com is
+ * built, and for the same reason: the default theme should be the one that
+ * needs no attribute set, so a window paints correctly before any script runs.
+ * The site offers six; this app offers two, so `classic` here is not the site's
+ * "light" theme, it is THIS APP's previous appearance, preserved exactly.
+ *
+ * The dark values are copied from the site's assets/css/tokens.css, unchanged,
+ * so the two products read as one. Names are kept identical too, which is what
+ * makes them checkable against the source.
+ *
+ * ADDING A COLOUR: put it here, not in a component. Anything hardcoded in
+ * style.css/picker.css is invisible to the switcher and will be wrong in one of
+ * the two themes -- which is exactly the state this file was written to end.
+ */
+
+:root {
+    /* ---- dark: the default ------------------------------------------- */
+
+    --scs-bg:             #282828;   /* page */
+    --scs-surface:        #2f2f2f;   /* panels, the archive list */
+    --scs-surface-raised: #363636;   /* controls sitting on a surface */
+    --scs-surface-hover:  #3d3d3d;   /* row hover */
+    /* Brighter than the site's #d6d6d6/#b8b8b8/#9a9a9a. The site is a dense
+       page of tables read at length, where a muted grey is easier; this app is
+       a handful of large controls glanced at between clips, and the softened
+       set read as washed out against #282828.
+       
+       #fff exactly, because logo_white.svg is drawn in #fff and the wordmark
+       sits directly beside it -- at #f4f4f4 the text read as slightly dirty
+       against the mark. The two have to be the same white or the difference
+       is visible in the one place they touch. */
+    --scs-text:           #ffffff;
+    --scs-text-secondary: #cfcfcf;
+    --scs-text-muted:     #a8a8a8;
+    --scs-text-on-accent: #1a1a1a;
+    --scs-border:         #3a3a3a;
+    --scs-border-strong:  #4a4a4a;
+    --scs-accent:         #5ac8fa;
+    --scs-accent-hover:   #8ad8fc;
+    --scs-accent-muted:   rgba(90, 200, 250, 0.16);
+
+    /* ---- app-specific, derived from the above ------------------------ */
+
+    /* The picker's chosen row. In dark it is the accent at low alpha with the
+       accent as the leading bar, which is the site's own selected-row idiom. */
+    --scs-selected-bg:  var(--scs-accent-muted);
+    --scs-selected-bar: var(--scs-accent);
+
+    /* RECESSED surfaces: the progress-bar tracks and the placeholder behind a
+       missing thumbnail. Distinct from --scs-surface-raised because the two
+       differ in classic, where a raised control is white and a recess must not
+       be -- an empty progress bar on a white page has to still read as a bar. */
+    --scs-inset: #363636;
+
+    /* The drop box's dashed rule. */
+    --scs-dropzone: var(--scs-border-strong);
+
+    /* Drawn white, not inverted: there is a real white SVG now, so the filter
+       hack that stood in for one is gone. Everything else that used to need it
+       -- home, and the two archive buttons -- is a font glyph now and takes
+       colour like text. */
+    --scs-logo: url('../img/logo_white.svg');
+}
+
+:root[data-theme="classic"] {
+    /* ---- classic: the app exactly as it was --------------------------- */
+
+    --scs-bg:             #fff;
+    --scs-surface:        #fff;
+    --scs-surface-raised: #fff;
+    --scs-surface-hover:  #f5f5f5;
+    --scs-text:           #000;
+    --scs-text-secondary: #555;
+    --scs-text-muted:     #777;
+    --scs-text-on-accent: #fff;
+    --scs-border:         #e0e0e0;
+    --scs-border-strong:  #c8c8c8;
+
+    /* Greyscale, not the site's blue: this theme is the app's own look, and
+       the picker was deliberately moved off its one saturated colour. */
+    --scs-accent:       #2b2b2b;
+    --scs-accent-hover: #444;
+    --scs-accent-muted: #ececec;
+
+    --scs-inset: #e9ecef;
+
+    --scs-selected-bg:  #e4e4e4;
+    --scs-selected-bar: #4a4a4a;
+
+    --scs-dropzone: #999;
+
+    --scs-logo: url('../img/logo_black.svg');
+}
+
+/* ---------------------------------------------------------------------------
+ * Applying the theme to things that are not a colour declaration.
+ * ------------------------------------------------------------------------- */
+
+/* Two files, one per theme, swapped by a token so the correct one is in the
+   very first paint -- no JS, and nothing to flip after the fact. */
+#logo {
+    background-image: var(--scs-logo);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+}
+
+/* ---- the theme toggle ------------------------------------------------- */
+
+/* Sits beside #home, which style.css pins at top:50px right:50px with a 100px
+   image. The glyph is text rather than a fifth PNG: two more assets to keep in
+   sync, for a control that is one character wide. */
+#themetoggle {
+    position: absolute;
+    top: 12px;
+    right: 76px;
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+    border-radius: 50%;
+    text-align: center;
+    font-size: 20px;
+    color: var(--scs-text-secondary);
+    border: 1px solid var(--scs-border-strong);
+    background: var(--scs-surface);
+    cursor: pointer;
+    user-select: none;
+}
+
+#themetoggle:hover {
+    color: var(--scs-text);
+    background: var(--scs-surface-hover);
+    transition: background .2s ease-out, color .2s ease-out;
+}
