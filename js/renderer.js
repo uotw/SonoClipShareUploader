@@ -566,10 +566,14 @@ $('#cropbtn').click(function() {
 			// THIS number becomes the scan_id. uploadapp5.php parses
 			// "NNN_<n>.<rest>" and takes <n> — the artifact basename, not the
 			// NNN ordering prefix — so continuing an existing archive means
-			// starting <n> after its highest scan. The API's my-archives and
-			// shared-archives supply that as `next_scan`; it is 0 for a new
-			// archive, giving 1, 2, 3…
-			// exactly as before.
+			// starting <n> after its highest scan.
+			//
+			// existingScanOffset is the LAST id already used, so the first file
+			// of a session takes offset + 1. A new archive leaves it at 0,
+			// giving 1, 2, 3… exactly as before. Note this is NOT the API's
+			// `next_scan`, which is one higher; the conversion is where the
+			// picker sets this, and doing it here instead would make a new
+			// archive start at 0.
 			//
 			// Restarting at 1 instead is what overwrote 001.mp4 and inserted a
 			// duplicate scans row on every append — harmless-looking on your
@@ -1198,7 +1202,22 @@ $('#okselect').click(function() {
 	// scans row — which on a shared archive means destroying someone else's
 	// media. `next_scan` comes from the API listing; it counts soft-deleted
 	// scans too, because a deleted row keeps its id AND its file on disk.
-	existingScanOffset = selectedArchive.next_scan || 0;
+	//
+	// MINUS ONE, because the two halves count differently. The API's
+	// `next_scan` is the next id to USE (MAX(scan_id) + 1), while
+	// existingScanOffset is the LAST id used — the transcode loop adds i + 1
+	// to it, and a new archive sets it to 0 so the first file is 1. Feeding
+	// the API's value in raw added the 1 twice: uploading into ByEDdH68yz,
+	// whose highest id was 64, started the batch at 66 and skipped 65.
+	//
+	// Harmless as bugs go — one wasted id per session, no collision and no
+	// overwrite, and ids in these archives are already non-contiguous — but
+	// the field means what its name says, so the correction belongs here
+	// rather than in a renamed contract.
+	//
+	// `|| 1` before the subtraction, not `|| 0`: a missing or zero value has
+	// to land on offset 0 (first file = 1), not -1.
+	existingScanOffset = (selectedArchive.next_scan || 1) - 1;
 
 	var owner = ownerLabel(selectedArchive);
 	$('#addtarget')
