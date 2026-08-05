@@ -15,6 +15,11 @@
     width: 720px;
     font-size: 1em;
     line-height: 1.35;
+    /* style.css sets text-align:center and font-size:1.5em on this id for the
+       old <select> version. picker.css loads after it, but only won where it
+       named the same properties -- so the centring leaked into every child and
+       the list rows inherited it. Stated here rather than fought row by row. */
+    text-align: left;
     /* Nudged down from style.css's dead centre: this block is ~500px tall, so
      * centring puts its heading against the app title on the 750px window. */
     top: 53%;
@@ -28,6 +33,7 @@
 #addselectmessage {
     font-size: 1.4em;
     margin-bottom: 14px;
+    text-align: center;    /* the heading IS centred; its children are not */
 }
 
 /* ---- search + scope --------------------------------------------------- */
@@ -69,8 +75,10 @@
 
 .scopetab:hover { background: #f2f2f2; }
 
+/* Greyscale, like the rest of the app. This was #000099, the only saturated
+   colour in the uploader, and it read as a different product. */
 .scopetab.is-active {
-    background: #000099;
+    background: #2b2b2b;
     color: #fff;
 }
 
@@ -99,14 +107,17 @@
 .arow:hover { background: #f5f5f5; }
 
 .arow.is-selected {
-    background: #000099;
+    background: #2b2b2b;
     color: #fff;
 }
 
 .arow.is-selected .asub,
 .arow.is-selected .abadge {
-    color: #d8d8ff;
+    color: #c8c8c8;
 }
+
+/* The ring has to lift off the dark row too. */
+.arow.is-selected .abadge.is-shared::before { border-color: #bbb; }
 
 .athumb {
     flex: 0 0 auto;
@@ -117,8 +128,8 @@
     background-size: cover;
 }
 
-/* No surviving scan, or the host has no signing secret -- see
- * scs_archives_thumb() in server/archivesapp.php. */
+/* No surviving scan: the API returns a null thumbnail_url rather than a URL
+ * pointing at a file that is not there. */
 .athumb.is-empty {
     background-image: none;
 }
@@ -157,11 +168,12 @@
 .abadge.is-shared::before {
     content: '';
     display: inline-block;
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     margin-right: 5px;
     border-radius: 50%;
-    background: #e08000;
+    background: transparent;
+    border: 1.5px solid #888;
     vertical-align: middle;
 }
 
