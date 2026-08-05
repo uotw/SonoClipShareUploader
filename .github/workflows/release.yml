@@ -50,6 +50,20 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
         run: npm run dist-macarm -- --publish never
 
+      # THE UPDATER FEED, NOT JUST THE INSTALLERS -- AND STASHED RIGHT HERE.
+      #
+      # electron-updater reads latest-mac.yml from the Release and downloads the
+      # .zip; Squirrel.Mac cannot update from a .dmg, so publishing only the
+      # DMGs means the app never sees an update at all.
+      #
+      # Each electron-builder run REWRITES dist/latest-mac.yml, so this copy has
+      # to happen between the two mac builds. Doing it after both (where it was
+      # in v2.7.0) stashes the x64 feed under the arm64 name, and the merge below
+      # then produces a feed with four x64 entries and no arm64 at all -- which
+      # offers Apple Silicon users the Intel build.
+      - name: Stash the arm64 updater feed
+        run: cp dist/latest-mac.yml dist/latest-mac-arm64.yml
+
       - name: Swap in x64 ffmpeg binary
         run: |
           rm -f node_modules/ffmpeg-static/ffmpeg
@@ -91,18 +105,6 @@ jobs:
             xcrun stapler validate "$dmg"
             echo "::endgroup::"
           done
-
-      # THE UPDATER FEED, NOT JUST THE INSTALLERS.
-      #
-      # electron-updater reads latest-mac.yml from the Release and downloads the
-      # .zip -- Squirrel.Mac cannot update from a .dmg. Publishing only the DMGs
-      # means the app never sees an update at all.
-      #
-      # latest-mac.yml is rewritten by each electron-builder run, so the x64
-      # build overwrites the arm64 one. Both are kept here under distinct names
-      # and merged in the release job.
-      - name: Stash the arm64 updater feed
-        run: cp dist/latest-mac.yml dist/latest-mac-arm64.yml || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -184,8 +186,21 @@ jobs:
               out.append(l)
               if l.startswith('files:'):
                   out.extend(entry)
-          open(x64[0], 'w').write('\n'.join(out) + '\n')
-          print(open(x64[0]).read())
+          merged = '\n'.join(out) + '\n'
+          open(x64[0], 'w').write(merged)
+          print(merged)
+
+          # ASSERT WHAT WE BUILT. v2.7.0 shipped a feed with four x64 entries and
+          # no arm64 -- valid YAML, published without complaint, and wrong. A
+          # broken feed is invisible until someone's update offers them the other
+          # architecture, so it is checked here rather than discovered later.
+          zips = [l for l in merged.splitlines() if l.strip().startswith('- url:') and l.endswith('.zip')]
+          arm = [l for l in zips if 'arm64' in l]
+          intel = [l for l in zips if 'arm64' not in l]
+          if len(arm) != 1 or len(intel) != 1:
+              sys.exit('merged feed must list exactly one arm64 zip and one x64 zip; got:\n' +
+                       '\n'.join(zips))
+          print('feed lists one arm64 zip and one x64 zip -- ok')
           EOF
 
       - name: Create / update GitHub Release
