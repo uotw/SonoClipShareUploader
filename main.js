@@ -226,7 +226,32 @@ function createauthWindow() {
   ses.webRequest.onCompleted({
     urls: ['https://ultrasoundjelly.auth0.com/mobile*']
   }, (details) => {
-    authService.requestAccessCode(details.url, createmainWindow, authWindow);
+    // HIDE BEFORE THE EXCHANGE, or the redirect page is on screen for the
+    // whole of it.
+    //
+    // Auth0's redirect URI is a stub whose entire body is the text "OK". By
+    // the time this fires the response has been fetched and painted, and the
+    // window then sits there for the length of the /oauth/token round trip --
+    // which is what flashes a white window reading "OK" between signing in and
+    // the app appearing. Nothing below needs that page rendered: the
+    // authorization code is in details.url.
+    //
+    // Hidden rather than closed, because the exchange can still fail and a
+    // window that is merely hidden can be shown again.
+    if (!authWindow.isDestroyed()) {
+      authWindow.hide();
+    }
+
+    authService.requestAccessCode(details.url, createmainWindow, authWindow)
+      .catch((err) => {
+        // Previously unhandled: a failed exchange left the "OK" page up with no
+        // explanation. It would now leave NO window at all, which is worse, so
+        // put it back and let the user retry or quit.
+        console.error('Token exchange failed:', err && err.message ? err.message : err);
+        if (!authWindow.isDestroyed()) {
+          authWindow.show();
+        }
+      });
   });
 }
 
