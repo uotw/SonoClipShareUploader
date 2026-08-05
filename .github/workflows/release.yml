@@ -112,6 +112,7 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
+            dist/*.blockmap
             dist/latest-mac*.yml
           if-no-files-found: error
 
@@ -145,6 +146,7 @@ jobs:
           name: windows-installer
           path: |
             dist/*.exe
+            dist/*.blockmap
             dist/latest.yml
           if-no-files-found: error
 
@@ -206,10 +208,20 @@ jobs:
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # BLOCKMAPS ARE PART OF THE FEED, not build debris. electron-updater
+          # fetches <file>.blockmap to work out which blocks changed; without it
+          # every update is a full ~110MB download even though the file has been
+          # generated all along. Publishing them is the difference between a
+          # comments-only release costing a few MB and costing the whole app.
+          #
+          # macOS also needs a cached copy of the PREVIOUS update.zip to diff
+          # against, so the first update after a manual install is always full;
+          # the one after that is incremental.
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.exe
             artifacts/**/*.zip
+            artifacts/**/*.blockmap
             artifacts/**/latest-mac.yml
             artifacts/**/latest.yml
           fail_on_unmatched_files: true

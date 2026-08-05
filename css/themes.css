@@ -174,14 +174,16 @@
    window -- a trick that dies the moment sign-in moves to the user's browser.
    The app knows its own version and appversion.php is public and CORS-enabled,
    so it can just ask. Nothing about this depends on how the user signs in. */
+/* BESIDE THE TITLE, in the header row. It used to be absolutely positioned and
+   centred on the window, which put it straight on top of "SonoClipShare
+   Uploader". As a flex item it takes the space after the title and shrinks
+   rather than covering anything. */
 #updatebanner {
     display: none;
-    position: absolute;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    max-width: 620px;
-    padding: 7px 14px;
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: 20px;
+    padding: 6px 13px;
     border-radius: 999px;
     font-size: .85em;
     color: var(--scs-text-on-accent);

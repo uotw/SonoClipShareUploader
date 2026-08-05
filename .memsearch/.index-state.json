@@ -1,0 +1,18 @@
+{
+  "collection": "ms_sonoclipshareuploaderfluent_3e4f4392",
+  "failed_files": [],
+  "indexed_chunks": 3,
+  "indexed_files": 2,
+  "last_completed_at": "2026-08-05T23:19:48.271202Z",
+  "last_started_at": "2026-08-05T23:19:46.744253Z",
+  "last_success_at": "2026-08-05T23:19:48.271202Z",
+  "milvus_uri": "~/.memsearch/milvus.db",
+  "operation": "index",
+  "paths": [
+    "/Users/ben/Documents/electronApps/SonoClipShareUploaderFluent/.memsearch/memory"
+  ],
+  "schema_version": 1,
+  "status": "ok",
+  "total_files": 2,
+  "updated_at": "2026-08-05T23:19:48.271202Z"
+}

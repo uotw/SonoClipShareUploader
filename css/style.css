@@ -240,6 +240,10 @@ html, body {
         every screen below it. */
      margin: 0 33px 8px;
      border-bottom: 1px solid var(--scs-border);
+     /* Room for sign-out / theme / home, which are pinned to the window rather
+        than laid out in this row -- without it the update banner runs under
+        them. */
+     padding-right: 160px;
 }
  #logo {
      /* The mark does not fill its 200x200 viewBox, so it renders smaller than

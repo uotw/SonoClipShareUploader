@@ -25,6 +25,7 @@ function _interopRequireDefault(obj) {
 const {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   shell,
@@ -312,10 +313,92 @@ function createmainWindow(token, authWindow) {
  * midway through de-identifying and uploading a study, and no update is worth
  * interrupting that.
  *
- * Verified end to end on the 2.7.0 -> 2.7.1 release: a signed, notarized build
- * found the update, downloaded it in the background, and installed it on quit,
- * with no button pressed. 2.7.1 exists for exactly that test.
+ * AND NEVER DOWNLOADS WITHOUT BEING ASKED. autoDownload is off. An update is
+ * ~110MB, and this app's users are on hospital and clinic connections where
+ * that competes directly with the study they are trying to upload -- the very
+ * thing they opened the app to do. So the first time an update appears the user
+ * chooses, once, and the answer is remembered:
+ *
+ *   updateMode 'auto'   -- fetch in the background from now on
+ *   updateMode 'manual' -- tell me, and I will decide each time
+ *
+ * Even in 'auto' the download waits for the upload pipeline to be idle; see
+ * startDownloadWhenIdle(). A skipped version is remembered so it is not offered
+ * again, while later versions still are.
  */
+var UPDATE_MODE_KEY = 'updateMode';
+var SKIPPED_VERSION_KEY = 'skippedVersion';
+var pipelineBusy = false;
+var pendingDownload = false;
+
+function sendToMain(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+/** Download now if nothing is uploading, otherwise as soon as that finishes. */
+function startDownloadWhenIdle() {
+  if (pipelineBusy) {
+    pendingDownload = true;
+    return;
+  }
+  pendingDownload = false;
+  autoUpdater.downloadUpdate().catch((err) => {
+    console.error('Update download failed:', err && err.message ? err.message : err);
+  });
+}
+
+function askAboutUpdates(version) {
+  var target = (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null;
+  var opts = {
+    type: 'question',
+    title: 'Update available',
+    message: 'SonoClipShare Uploader ' + version + ' is available.',
+    detail: 'Updates are around 110 MB. On a slow connection, downloading one ' +
+            'while you are uploading a study will slow the upload down.\n\n' +
+            'You can change this later from the menu.',
+    buttons: ['Download automatically from now on', 'Download this one only', 'Skip this version'],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true
+  };
+  var p = target ? dialog.showMessageBox(target, opts) : dialog.showMessageBox(opts);
+  return p.then(function (res) {
+    if (res.response === 0) {
+      prefsStore.set(UPDATE_MODE_KEY, 'auto');
+      startDownloadWhenIdle();
+    } else if (res.response === 1) {
+      // One-off: they have chosen for this version, not for every future one.
+      prefsStore.set(UPDATE_MODE_KEY, 'manual');
+      startDownloadWhenIdle();
+    } else {
+      prefsStore.set(UPDATE_MODE_KEY, 'manual');
+      prefsStore.set(SKIPPED_VERSION_KEY, version);
+    }
+  }).catch(function () {});
+}
+
+function onUpdateAvailable(info) {
+  var version = info && info.version;
+  if (!version) { return; }
+
+  // Skipped means skipped -- for THAT version. A later one is still offered.
+  if (prefsStore.get(SKIPPED_VERSION_KEY) === version) {
+    return;
+  }
+
+  var mode = prefsStore.get(UPDATE_MODE_KEY);
+  if (!mode) {
+    askAboutUpdates(version);
+  } else if (mode === 'auto') {
+    startDownloadWhenIdle();
+  } else {
+    // Manual: they still hear about every release, they just decide when.
+    sendToMain('update-offer', version);
+  }
+}
+
 function initAutoUpdater() {
   // In development there is no feed and electron-updater throws on the first
   // check. Nothing to update when running from source anyway.
@@ -323,14 +406,11 @@ function initAutoUpdater() {
     return;
   }
 
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on('update-downloaded', (info) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-downloaded', info && info.version);
-    }
-  });
+  autoUpdater.on('update-available', onUpdateAvailable);
+  autoUpdater.on('update-downloaded', (info) => sendToMain('update-downloaded', info && info.version));
 
   // Logged, not surfaced. A failed update check is not the user's problem, and
   // the appversion.php banner still tells them a newer version exists.
@@ -342,6 +422,20 @@ function initAutoUpdater() {
     console.error('Auto-update check failed:', err && err.message ? err.message : err);
   });
 }
+
+// The renderer tells us when the de-identify/upload pipeline is running, so an
+// update download never competes with the study the user is actually here for.
+ipcMain.on('pipeline-busy', function (event, busy) {
+  pipelineBusy = !!busy;
+  if (!pipelineBusy && pendingDownload) {
+    startDownloadWhenIdle();
+  }
+});
+
+// "Download" on the manual banner.
+ipcMain.on('download-update', function () {
+  startDownloadWhenIdle();
+});
 
 // SIGN-IN HAPPENS IN THE USER'S BROWSER, NOT IN THIS APP.
 //
@@ -674,6 +768,54 @@ app.on("ready", function() {
           aboutWindow.loadURL(`file://${__dirname}/about.html?v=` +
                               encodeURIComponent(app.getVersion()));
           //aboutWindow.webContents.openDevTools();
+        }
+      },
+      {
+        label: 'Check for Updates…',
+        click() {
+          if (!app.isPackaged) {
+            dialog.showMessageBox({ type: 'info', message: 'Updates are only available in an installed build.' });
+            return;
+          }
+          // An explicit check should answer even when there is nothing to say --
+          // silence would be indistinguishable from a broken updater.
+          autoUpdater.once('update-not-available', function () {
+            dialog.showMessageBox({
+              type: 'info',
+              title: 'No update',
+              message: 'You are on the latest version (' + app.getVersion() + ').'
+            });
+          });
+          autoUpdater.checkForUpdates().catch(function (err) {
+            dialog.showMessageBox({
+              type: 'warning',
+              title: 'Could not check for updates',
+              message: err && err.message ? err.message : String(err)
+            });
+          });
+        }
+      },
+      {
+        label: 'Update Settings…',
+        click() {
+          var mode = prefsStore.get(UPDATE_MODE_KEY) || 'not set';
+          dialog.showMessageBox({
+            type: 'question',
+            title: 'Updates',
+            message: 'How should updates be downloaded?',
+            detail: 'Currently: ' + (mode === 'auto' ? 'automatically' :
+                                     mode === 'manual' ? 'ask me each time' : 'not chosen yet') +
+                    '.\n\nUpdates are around 110 MB and always install when you quit, never mid-session.',
+            buttons: ['Download automatically', 'Ask me each time', 'Cancel'],
+            defaultId: 0,
+            cancelId: 2,
+            noLink: true
+          }).then(function (res) {
+            if (res.response === 0) { prefsStore.set(UPDATE_MODE_KEY, 'auto'); }
+            else if (res.response === 1) { prefsStore.set(UPDATE_MODE_KEY, 'manual'); }
+            // Choosing again clears a previous skip -- they are re-engaging.
+            if (res.response !== 2) { prefsStore.delete(SKIPPED_VERSION_KEY); }
+          }).catch(function () {});
         }
       },
       {

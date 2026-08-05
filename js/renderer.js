@@ -405,6 +405,8 @@ function progressend(uploadResponse) {
 			$('#uploaderrors').show();
 		}
 
+		ipcRenderer.send('pipeline-busy', false);
+
 		filelist = [];
 		$('#filelist').html('');
 		$('#addtarget').hide();
@@ -476,6 +478,10 @@ $('#cropbtn').click(function() {
 	for (var t = 0; t < filelist.length; t++) {
 		totalOutputs += (isclip(filelist[t]) ? 2 : 1) + THUMB_WIDTHS.length;
 	}
+	// An update download must not compete with this. main.js holds any pending
+	// download until the pipeline reports idle again.
+	ipcRenderer.send('pipeline-busy', true);
+
 	var transcodedSources = 0;
 	var uploadedOutputs = 0;
 	// Per-session, and deliberately NOT offset: this is the "NNN_" prefix, which
@@ -495,6 +501,7 @@ $('#cropbtn').click(function() {
 
 	function fail(err) {
 		if (pipelineError) return;
+		ipcRenderer.send('pipeline-busy', false);
 		pipelineError = err;
 		console.error('Pipeline error:', err);
 		var msg = (err && err.message) ? err.message : String(err);
@@ -863,11 +870,17 @@ function isNewerVersion(candidate, current) {
 	return false;
 }
 
+// Set once the updater has something to say. The appversion.php check is a
+// fallback for builds whose updater cannot reach GitHub; when both have an
+// opinion the updater's is the useful one, because it can actually install.
+var updaterOwnsBanner = false;
+
 function checkForNewVersion() {
 	$.ajax({ url: APPVERSION_ENDPOINT, dataType: 'json', cache: false, timeout: 8000 })
 		.done(function (data) {
 			var latest = data && data.version;
 			if (!latest || !isNewerVersion(latest, version)) { return; }
+			if (updaterOwnsBanner) { return; }
 
 			$('#updatetext').text('Version ' + latest + ' is available — you have ' + version + '.');
 			$('#updatebanner').fadeIn();
@@ -884,12 +897,27 @@ $('#updatelink').click(function () {
 	shell.openExternal(DOWNLOAD_PAGE);
 });
 
-// The updater got there first: it has already downloaded the new version in
-// the background, so there is nothing to go and fetch. The message says WHEN it
-// lands rather than offering a restart button, because this app can be halfway
-// through de-identifying and uploading a study and no update is worth
-// interrupting that. main.js installs it on quit.
+// AVAILABLE, BUT NOT FETCHED. The user chose "ask me each time", so nothing has
+// been downloaded -- this offers it. Downloads are ~110MB and this app's users
+// are often on connections where that would fight the study they are uploading,
+// which is the whole reason the choice exists.
+ipcRenderer.on('update-offer', function (event, newVersion) {
+	updaterOwnsBanner = true;
+	$('#updatetext').text('Version ' + newVersion + ' is available.');
+	$('#updatelink').text('Download').show().off('click').on('click', function () {
+		$('#updatetext').text('Downloading version ' + newVersion + '…');
+		$('#updatelink').hide();
+		ipcRenderer.send('download-update');
+	});
+	$('#updatebanner').fadeIn();
+});
+
+// The update is on disk now. The message says WHEN it lands rather than
+// offering a restart button, because this app can be halfway through
+// de-identifying and uploading a study and no update is worth interrupting
+// that. main.js installs it on quit.
 ipcRenderer.on('update-downloaded', function (event, newVersion) {
+	updaterOwnsBanner = true;
 	$('#updatetext').text('Version ' + (newVersion || 'update') +
 		' downloaded — it will install when you quit.');
 	$('#updatelink').hide();
