@@ -163,10 +163,14 @@ html, body {
      width:10px;
 }
  body {
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
 }
  h1 {
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     /* Manrope, as on the website's page titles -- see css/fonts.css. The old
+        stack resolved to Optima on macOS, which is why the app title rendered
+        in a humanist serif there and in Calibri on Windows: the same heading,
+        two different typefaces, neither of them the site's. */
+     font-family: var(--scs-font-title);
      color:black;
      line-height:150px;
 }
@@ -189,7 +193,7 @@ html, body {
      display:none;
 }
  #progressmsg {
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
      display:none;
      margin-top: 40px;
      margin-bottom: 6px;
@@ -203,7 +207,7 @@ html, body {
      display:none;
 }
  #activefile {
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
      display:none;
      margin-top: 6px;
      font-size: 12px;
@@ -264,7 +268,7 @@ html, body {
      text-shadow: 0 1px 2px rgba(0,0,0,0.18);
 }
  #progressmsgUL {
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
      display:none;
      margin-top: 0;
      margin-bottom: 6px;
@@ -279,7 +283,7 @@ html, body {
 }
  #highlight {
      line-height:1em !important;
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
      width: 500px;
      margin:auto;
      text-align:center;
@@ -288,7 +292,7 @@ html, body {
      display:none;
 }
  #confirm{
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
      width: 500px;
      margin:auto;
      text-align:center;
@@ -313,7 +317,7 @@ html, body {
      display:none;
 }
  #drag {
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
      text-align:center;
      margin:0;
      line-height:430px;
@@ -321,7 +325,7 @@ html, body {
  #filelist{
      color:black;
      margin-top:-430px;
-     font-family: "Courier New", Courier, "Lucida Sans Typewriter", "Lucida Typewriter", monospace;
+     font-family: var(--scs-font-mono);
      font-size:0.75em;
      height:410px;
      overflow:scroll;
@@ -409,7 +413,7 @@ html, body {
      bottom:30px;
 }
  #addfilestatus{
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
      color:black;
      display:none;
      text-align:center;
@@ -675,7 +679,7 @@ html, body {
      -webkit-animation: loading-text-opacity 2s linear 0s infinite normal;
      animation: loading-text-opacity 2s linear 0s infinite normal;
      color: #00000;
-     font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+     font-family: var(--scs-font);
      font-size: 16px;
      opacity: 0;
      position: relative;

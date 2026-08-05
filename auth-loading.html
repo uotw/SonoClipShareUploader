@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <!-- The sign-in splash is the first screen of the app, so it takes the
+         site's fonts too. Linked rather than inlined: same tokens as index.html. -->
+    <link rel="stylesheet" type="text/css" href="./css/fonts.css">
     <style>
         body {
             margin: 0;
@@ -11,7 +14,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            font-family: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, sans-serif;
+            font-family: var(--scs-font);
             color: white;
             text-rendering: optimizeLegibility;
             font-weight: 300;
@@ -42,7 +45,7 @@
         .banner h2 {
             margin: 0 0 10px 0;
             font-size: 24px;
-            font-family: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, sans-serif;
+            font-family: var(--scs-font);
             font-weight: 300;
             text-rendering: optimizeLegibility;
             text-align: center;
@@ -57,7 +60,7 @@
         .banner p {
             margin: 0;
             opacity: 0.8;
-            font-family: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, sans-serif;
+            font-family: var(--scs-font);
             font-weight: 300;
             text-rendering: optimizeLegibility;
             text-align: center;
