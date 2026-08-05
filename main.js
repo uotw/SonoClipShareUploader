@@ -399,6 +399,45 @@ function onUpdateAvailable(info) {
   }
 }
 
+/**
+ * electron-updater's own log, on disk.
+ *
+ * It reports the things that decide whether an update is a few megabytes or a
+ * hundred -- most usefully `Download block maps (old: ..., new: ...)` and
+ * whether the differential download succeeded or fell back. None of that
+ * reaches a packaged app's stdout, so without this the only way to judge an
+ * update is to watch a progress bar and guess.
+ *
+ * Kept permanently rather than as test scaffolding: when someone reports "the
+ * update never arrives", this file is the first thing worth reading. Written to
+ * Electron's standard logs directory (~/Library/Logs/<app> on macOS).
+ */
+function updaterLogger() {
+  var fs = require('fs');
+  var logPath = null;
+  try {
+    var dir = app.getPath('logs');
+    fs.mkdirSync(dir, { recursive: true });
+    logPath = require('path').join(dir, 'updater.log');
+  } catch (e) { /* logging must never break updating */ }
+
+  function write(level, args) {
+    var line = new Date().toISOString() + '  ' + level + '  ' +
+      Array.prototype.map.call(args, function (a) {
+        return (a && a.stack) ? a.stack : (typeof a === 'object' ? JSON.stringify(a) : String(a));
+      }).join(' ');
+    console.log('[updater] ' + line);
+    if (logPath) { try { fs.appendFileSync(logPath, line + '\n'); } catch (e) {} }
+  }
+
+  return {
+    info:  function () { write('info', arguments); },
+    warn:  function () { write('warn', arguments); },
+    error: function () { write('error', arguments); },
+    debug: function () { write('debug', arguments); }
+  };
+}
+
 function initAutoUpdater() {
   // In development there is no feed and electron-updater throws on the first
   // check. Nothing to update when running from source anyway.
@@ -406,6 +445,7 @@ function initAutoUpdater() {
     return;
   }
 
+  autoUpdater.logger = updaterLogger();
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
