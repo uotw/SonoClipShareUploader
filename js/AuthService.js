@@ -68,9 +68,17 @@ var AuthService = function () {
                             if (response.data.id_token) {
                                 console.log('Found id_token, length:', response.data.id_token.length);
                             } else if (response.data.access_token) {
-                                console.log('Found access_token, length:', response.data.access_token.length);
-                                // Some Auth0 configurations return access_token instead of id_token
-                                response.data.id_token = response.data.access_token;
+                                // NO LONGER ALIASED INTO id_token. The two are
+                                // not interchangeable now: the upload endpoint
+                                // POSTs its token to Auth0 /tokeninfo, which
+                                // accepts ID tokens only, so copying the API
+                                // access token here would turn a working
+                                // upload into an unexplained 401. `openid` is
+                                // in scope, so a missing id_token means the
+                                // scope was dropped -- worth seeing, not
+                                // papering over.
+                                console.warn('No id_token in response -- uploads will fail. ' +
+                                             'Check that "openid" is still in the requested scope.');
                             } else {
                                 console.log('No id_token or access_token found in response');
                             }
@@ -95,7 +103,30 @@ var AuthService = function () {
     }, {
         key: 'getAuthoriseUrl',
         value: function getAuthoriseUrl(challengePair) {
-            return this.config.authorizeEndpoint + '?scope=' + this.config.scope + '&response_type=code&client_id=' + this.config.clientId + '&code_challenge=' + challengePair.challenge + '&code_challenge_method=S256&redirect_uri=' + this.config.redirectUri;
+            // THE AUDIENCE MUST BE ON THIS URL, not merely in the config.
+            //
+            // This builder used to drop it, so setting config.audience did
+            // nothing: Auth0 issued a token for the tenant's default audience,
+            // which is an OPAQUE string rather than a JWT for our API. The API
+            // cannot verify an opaque token, so every call 401'd and the picker
+            // reported "Session expired" after a sign-in that had actually
+            // succeeded. For an authorization_code grant the audience is bound
+            // HERE, at /authorize -- adding it to the token POST is too late.
+            //
+            // Values are encoded because scope is now two space-separated
+            // words and the audience is itself a URL.
+            var params = [
+                'response_type=code',
+                'client_id=' + encodeURIComponent(this.config.clientId),
+                'scope=' + encodeURIComponent(this.config.scope),
+                'redirect_uri=' + encodeURIComponent(this.config.redirectUri),
+                'code_challenge=' + encodeURIComponent(challengePair.challenge),
+                'code_challenge_method=S256'
+            ];
+            if (this.config.audience) {
+                params.push('audience=' + encodeURIComponent(this.config.audience));
+            }
+            return this.config.authorizeEndpoint + '?' + params.join('&');
         }
     }, {
         key: 'getTokenPostRequest',
