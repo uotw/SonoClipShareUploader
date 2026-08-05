@@ -1,6 +1,6 @@
 {
   "name": "SonoClipShareUploader",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "private": true,
   "description": "De-Identify and upload your ultrasound clips to sonoclipshare.com",
   "main": "main.js",
