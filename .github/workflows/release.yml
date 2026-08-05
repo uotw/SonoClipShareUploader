@@ -203,7 +203,22 @@ jobs:
       # Tell sonoclipshare.com the newest version so the Auth0 login page can
       # show the "update available" banner (server/appversion.php). Best-effort:
       # a failure here must not fail the release.
+      # THE ANNOUNCEMENT, gated separately from the release itself.
+      #
+      # appversion.php is what makes existing installs show "a new version is
+      # available"; electron-updater does not consult it at all, it reads the
+      # Release feed directly. Keeping them separate means a release can be
+      # published and updated-to WITHOUT being announced -- which is how a
+      # release gets verified end to end before anyone is told about it.
+      #
+      # Set the repository variable ANNOUNCE_RELEASE to "true" (Settings ->
+      # Secrets and variables -> Actions -> Variables) when a release should be
+      # advertised. Left unset, tags publish silently. To announce afterwards,
+      # either flip it and re-run this job, or POST by hand:
+      #   curl -X POST "https://www.sonoclipshare.com/appversion.php?version=2.7.0" \
+      #        -H "X-Release-Token: <token>"
       - name: Publish latest version to sonoclipshare.com
+        if: vars.ANNOUNCE_RELEASE == 'true'
         env:
           SCS_RELEASE_TOKEN: ${{ secrets.SCS_RELEASE_TOKEN }}
         run: |
