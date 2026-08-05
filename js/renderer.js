@@ -834,6 +834,75 @@ function addfilestatus() {
 	$('#addfilestatus').show();
 }
 
+// ---- "a newer version is available" -----------------------------------------
+//
+// The Auth0 login page used to do this: it read the app version out of the
+// User-Agent the app set on the embedded auth window and compared it against
+// appversion.php. Moving sign-in to the user's browser kills that -- the
+// browser sends its own UA -- and it was always an odd place for the check,
+// since it only ran at sign-in and depended on a page hosted in the Auth0
+// dashboard.
+//
+// The app knows its own version, and appversion.php is public and CORS-enabled
+// (GET -> {"version":"x.y.z"}), written by the release workflow. So it asks
+// directly. Nothing here depends on how the user signed in.
+
+var APPVERSION_ENDPOINT = 'https://www.sonoclipshare.com/appversion.php';
+var DOWNLOAD_PAGE = 'https://github.com/uotw/SonoClipShareUploader#download';
+
+// Numeric, part by part: "2.10.0" is NEWER than "2.9.0", which a string
+// comparison gets backwards. Non-numeric or short versions compare as 0.
+function isNewerVersion(candidate, current) {
+	var a = String(candidate || '').split('.');
+	var b = String(current || '').split('.');
+	for (var i = 0; i < Math.max(a.length, b.length); i++) {
+		var x = parseInt(a[i], 10) || 0;
+		var y = parseInt(b[i], 10) || 0;
+		if (x !== y) { return x > y; }
+	}
+	return false;
+}
+
+function checkForNewVersion() {
+	$.ajax({ url: APPVERSION_ENDPOINT, dataType: 'json', cache: false, timeout: 8000 })
+		.done(function (data) {
+			var latest = data && data.version;
+			if (!latest || !isNewerVersion(latest, version)) { return; }
+
+			$('#updatetext').text('Version ' + latest + ' is available — you have ' + version + '.');
+			$('#updatebanner').fadeIn();
+		})
+		.fail(function (xhr, status) {
+			// Silent by design. Not knowing whether an update exists must never
+			// interrupt someone about to upload a study; the version in the
+			// corner is still correct either way.
+			console.warn('Version check skipped:', status);
+		});
+}
+
+$('#updatelink').click(function () {
+	shell.openExternal(DOWNLOAD_PAGE);
+});
+
+// The updater got there first: it has already downloaded the new version in
+// the background, so there is nothing to go and fetch. The message says WHEN it
+// lands rather than offering a restart button, because this app can be halfway
+// through de-identifying and uploading a study and no update is worth
+// interrupting that. main.js installs it on quit.
+ipcRenderer.on('update-downloaded', function (event, newVersion) {
+	$('#updatetext').text('Version ' + (newVersion || 'update') +
+		' downloaded — it will install when you quit.');
+	$('#updatelink').hide();
+	$('#updatebanner').fadeIn();
+});
+
+checkForNewVersion();
+
+// Warm the picker's cache shortly after the app is up, so the first click on
+// "Add to an existing Archive" paints immediately. Deliberately after startup:
+// the first upload of a session matters more than this does.
+setTimeout(warmArchiveCache, 1500);
+
 // ---- theme ------------------------------------------------------------------
 //
 // Two themes, dark by default. The values live in css/themes.css: dark is
@@ -852,7 +921,16 @@ function currentTheme() {
 	return document.documentElement.getAttribute('data-theme') === 'classic' ? 'classic' : 'dark';
 }
 
-function applyTheme(theme) {
+/**
+ * @param persist  write the choice to disk. FALSE on load.
+ *
+ * Writing on load made the stored value self-perpetuating: the <head> script
+ * reads it, the DOM reflects it, this reads the DOM back and writes it again.
+ * A preference set once could then never lapse, and "no preference" -- the
+ * state where dark is simply the default -- became unreachable after the first
+ * launch. Now only an actual click writes.
+ */
+function applyTheme(theme, persist) {
 	var classic = (theme === 'classic');
 
 	if (classic) {
@@ -869,7 +947,12 @@ function applyTheme(theme) {
 		.attr('title', classic ? 'Switch to dark' : 'Switch to classic (light)');
 
 	try {
-		store.set('theme', classic ? 'classic' : 'dark');
+		if (persist) {
+			store.set('theme', classic ? 'classic' : 'dark');
+		}
+		// The title bar and traffic lights are native and cannot be reached from
+		// CSS -- main.js repaints them.
+		ipcRenderer.send('theme-changed');
 	} catch (e) {
 		// A preference that cannot be written is worth a line in the console
 		// and nothing more; the window is already showing the right thing.
@@ -877,12 +960,19 @@ function applyTheme(theme) {
 	}
 }
 
-$('#themetoggle').click(function () {
-	applyTheme(currentTheme() === 'classic' ? 'dark' : 'classic');
+$('#signout').click(function () {
+	// main.js clears the stored credential and relaunches, so this lands back
+	// on the sign-in screen rather than in a half-signed-out app.
+	ipcRenderer.send('sign-out');
 });
 
-// Sets the glyph and title to match whatever <head> already applied.
-applyTheme(currentTheme());
+$('#themetoggle').click(function () {
+	applyTheme(currentTheme() === 'classic' ? 'dark' : 'classic', true);
+});
+
+// Sets the glyph and title to match whatever <head> already applied. Does NOT
+// persist -- see applyTheme().
+applyTheme(currentTheme(), false);
 
 // ---- "add to an existing Archive" picker ------------------------------------
 //
@@ -1038,13 +1128,35 @@ function archiveDateValue(row) {
 	return isNaN(t) ? 0 : t;
 }
 
-// Fetch the next page of one source into its buffer. Resolves either way --
-// a failure marks that source done and records the error, so one dead source
-// cannot wedge the merge.
-function fillBuffer(kind, seq) {
-	var s = picker.src[kind];
-	if (s.buf.length || s.done) { return $.Deferred().resolve().promise(); }
+// ---- the warm cache ---------------------------------------------------------
+//
+// The first page of each source, fetched shortly after the app opens, so the
+// picker paints instantly instead of showing a spinner for a round trip.
+//
+// FIVE MINUTES, and the number is not arbitrary: the API signs thumbnail URLs
+// with a 1800-second TTL (buildSecureLink). Serve a cache older than that and
+// every tile 403s -- a picker full of broken images, which is worse than the
+// spinner this replaces. Five minutes leaves a wide margin.
+//
+// ONLY page 1 of an empty search is cached. That is the state the picker opens
+// in; searches and later pages always go to the network, where being current
+// matters more and there is nothing to make instant anyway.
+var PREFETCH_TTL_MS = 5 * 60 * 1000;
+var prefetch = { mine: null, shared: null };
 
+function parseArchivePage(kind, response) {
+	var d = (response && response.data) ? response.data : response;
+	var rows = (d && d.archives) || [];
+	var pag = (d && d.pagination) || {};
+	return {
+		rows: rows.map(function(r) { return normalizeArchive(kind, r); }),
+		page: pag.page || 1,
+		total: typeof pag.total === 'number' ? pag.total : rows.length,
+		totalPages: pag.total_pages || null
+	};
+}
+
+function requestArchivePage(kind, page, search) {
 	return $.ajax({
 		cache: false,
 		url: API_ENDPOINT,
@@ -1053,19 +1165,61 @@ function fillBuffer(kind, seq) {
 		headers: { Authorization: 'Bearer ' + checkApiToken() },
 		data: {
 			endpoint: kind === 'mine' ? 'my-archives' : 'shared-archives',
-			page: s.page + 1,
+			page: page,
 			limit: PICKER_PAGE_SIZE,
-			search: picker.q
+			search: search
 		}
-	}).then(function(response) {
+	}).then(function(response) { return parseArchivePage(kind, response); });
+}
+
+function freshPrefetch(kind) {
+	var c = prefetch[kind];
+	return (c && (Date.now() - c.at) < PREFETCH_TTL_MS) ? c.data : null;
+}
+
+// Warm both sources. Silent on failure by design: this is speculative work the
+// user did not ask for, it fails transiently (asleep, captive wifi), and the
+// picker reports properly when a fetch the user IS waiting on fails.
+function warmArchiveCache() {
+	if (!checkApiToken()) { return; }
+	['mine', 'shared'].forEach(function(kind) {
+		requestArchivePage(kind, 1, '').then(function(parsed) {
+			prefetch[kind] = { at: Date.now(), data: parsed };
+		}, function() { /* silent */ });
+	});
+}
+
+function applyPage(s, parsed) {
+	s.page = parsed.page;
+	s.total = parsed.total;
+	parsed.rows.forEach(function(r) { s.buf.push(r); });
+	if (!parsed.rows.length || (parsed.totalPages && s.page >= parsed.totalPages)) {
+		s.done = true;
+	}
+}
+
+// Fetch the next page of one source into its buffer. Resolves either way --
+// a failure marks that source done and records the error, so one dead source
+// cannot wedge the merge.
+function fillBuffer(kind, seq) {
+	var s = picker.src[kind];
+	if (s.buf.length || s.done) { return $.Deferred().resolve().promise(); }
+
+	var page = s.page + 1;
+	if (page === 1 && !picker.q) {
+		var cached = freshPrefetch(kind);
+		if (cached) {
+			applyPage(s, cached);
+			return $.Deferred().resolve().promise();
+		}
+	}
+
+	return requestArchivePage(kind, page, picker.q).then(function(parsed) {
 		if (seq !== picker.seq) { return; }          // superseded by a newer search
-		var d = (response && response.data) ? response.data : response;
-		var rows = (d && d.archives) || [];
-		var pag = (d && d.pagination) || {};
-		s.page = pag.page || (s.page + 1);
-		s.total = typeof pag.total === 'number' ? pag.total : rows.length;
-		rows.forEach(function(r) { s.buf.push(normalizeArchive(kind, r)); });
-		if (!rows.length || (pag.total_pages && s.page >= pag.total_pages)) { s.done = true; }
+		applyPage(s, parsed);
+		if (page === 1 && !picker.q) {
+			prefetch[kind] = { at: Date.now(), data: parsed };
+		}
 	}, function(xhr) {
 		if (seq !== picker.seq) { return; }
 		s.done = true;
@@ -1132,11 +1286,16 @@ function loadArchives(reset) {
 
 	var seq = picker.seq;
 	picker.loading = true;
+	$('#pickerrefresh').addClass('is-spinning');
 	setPickerStatus(picker.loaded === 0 ? 'Loading archives…' : 'Loading more…');
 
+	// One settle point is enough: emitMerged always resolves. fillBuffer turns a
+	// failed source into "done, with an error" rather than a rejection, so one
+	// dead endpoint cannot leave the spinner running forever.
 	emitMerged(PICKER_PAGE_SIZE, seq).then(function(rows) {
 		if (seq !== picker.seq) { return; }
 		picker.loading = false;
+		$('#pickerrefresh').removeClass('is-spinning');
 
 		var $list = $('#archivelist');
 		rows.forEach(function(a) { $list.append(archiveRow(a)); });
@@ -1178,6 +1337,11 @@ function openArchivePicker() {
 	$('#addselect').fadeIn();
 	$('#archivesearch').focus();
 	loadArchives(true);
+
+	// Refresh the CACHE in the background, not the visible list: rows shifting
+	// under the cursor while someone is reading them is worse than being a few
+	// minutes stale. The refresh button is there for when they want it now.
+	warmArchiveCache();
 }
 
 $('#add').click(function() {
@@ -1202,6 +1366,15 @@ $('.scopetab').click(function() {
 	$('.scopetab').removeClass('is-active');
 	$(this).addClass('is-active');
 	picker.scope = scope;
+	loadArchives(true);
+});
+
+// Force a trip to the server. Dropping the cache first is the point: without
+// that, a refresh inside the cache window would repaint the same rows and look
+// broken.
+$('#pickerrefresh').click(function() {
+	prefetch.mine = null;
+	prefetch.shared = null;
 	loadArchives(true);
 });
 

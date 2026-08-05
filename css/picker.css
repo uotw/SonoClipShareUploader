@@ -103,6 +103,30 @@
     color: var(--scs-text-on-accent);
 }
 
+/* Manual refresh. The list is painted from a short-lived cache so the picker
+   opens instantly, which means it can be a few minutes behind an archive you
+   just created on the phone or the website -- this is the way to say "no,
+   really, go and look". */
+#pickerrefresh {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    line-height: 38px;
+    text-align: center;
+    font-size: 15px;
+    color: var(--scs-text-muted);
+    cursor: pointer;
+}
+
+#pickerrefresh:hover { color: var(--scs-text); }
+
+#pickerrefresh.is-spinning {
+    animation: scs-spin 0.9s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes scs-spin { to { transform: rotate(360deg); } }
+
 /* ---- the list --------------------------------------------------------- */
 
 #archivelist {

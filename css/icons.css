@@ -46,3 +46,5 @@
 .fa-house       { --fa: "\f015"; }   /* home */
 .fa-sun         { --fa: "\f185"; }   /* theme toggle, in dark */
 .fa-moon        { --fa: "\f186"; }   /* theme toggle, in classic */
+.fa-sign-out    { --fa: "\f08b"; }   /* sign out */
+.fa-rotate-right{ --fa: "\f2f9"; }   /* refresh the archive list */

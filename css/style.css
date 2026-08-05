@@ -117,17 +117,6 @@ html, body {
      font-size: 1.5em;
      margin-bottom: 10px;
 }
- #or{
-     display: table-cell;
-     text-align: center;
-     width: 10px;
-     /* Was 5em, which made the conjunction the largest thing on the opening
-        screen -- bigger than either of the two choices it separates. It stays
-        subordinate to the icons rather than scaling with them. */
-     font-size: 1.8em;
-     color: var(--scs-text-muted);
-     vertical-align: middle;
-}
  #oktitle {
      width: 771px;
      height: 60px;
@@ -169,34 +158,55 @@ html, body {
     whatever display it had, and switching to flex here would work but leaves
     a trap for anyone who later hides it while it is still in the stylesheet
     default -- table is what the cells below expect either way. */
+ /* FLEX, not a table.
+    The two tiles have to be identical and the pair has to sit in the middle.
+    With table cells that meant percentage widths, which automatic layout treats
+    as a suggestion (the tiles came out 271 and 302 because the folder glyph is
+    wider), and which fixed layout resolves against a width that ignores
+    border-spacing (equal tiles, but 70px stranded on the right). Centring a row
+    of two is what flex does natively.
+
+    Safe to use flex here even though jQuery hides and shows this element:
+    #addornew is VISIBLE in the stylesheet, so .hide() records `flex` and
+    .fadeIn() restores it. That does not hold for #addselect, which starts as
+    display:none -- there jQuery would fall back to `block`. */
  #addornew {
-     display:table;
-     width:100%;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     gap: 64px;   /* the tiles are the whole content now; no word between them */
      position: absolute;
      top: 50%;
-     left: 0;
+     left: 33px;
+     right: 33px;
+     width: auto;
      transform: translateY(-50%);
      margin-top: 0;
 }
  #addmessage, #newmessage {
      font-size: 1.5em;
 }
- #add{
-     display:table-cell;
+ /* EACH OPTION IS A CARD.
+    The two choices used to float in an empty field with nothing to say they
+    were clickable -- no border, no hover, no boundary. A card per option gives
+    each one an edge and somewhere for the hover state to happen. Per option
+    rather than one box around both, because they are two separate targets and
+    a single container could not highlight the one under the cursor. */
+ #add, #new {
+     /* Identical by construction rather than by percentage. */
+     flex: 0 0 360px;
      cursor: pointer;
      text-align: center;
-     width:264px;
+     padding: 30px 24px;
+     border: 1px solid var(--scs-border-strong);
+     border-radius: 10px;
+     background: var(--scs-surface);
+     box-shadow: 0 2px 14px rgba(0, 0, 0, 0.10);
+     transition: background .18s ease-out, border-color .18s ease-out;
 }
- #new {
-     display:table-cell;
-     cursor: pointer;
-     text-align: center;
-     width:264px;
-}
- #or {
-     display:table-cell;
-     text-align: center;
-     width:10px;
+ #add:hover, #new:hover {
+     background: var(--scs-surface-hover);
+     border-color: var(--scs-accent);
 }
  body {
      font-family: var(--scs-font);
@@ -225,7 +235,11 @@ html, body {
      gap: 14px;
      height: 64px;
      padding-left: 6px;
-     margin-bottom: 8px;
+     /* A rule across the top, so the header reads as chrome rather than as the
+        first thing floating in the content area. Inset to the same 33px as
+        every screen below it. */
+     margin: 0 33px 8px;
+     border-bottom: 1px solid var(--scs-border);
 }
  #logo {
      /* The mark does not fill its 200x200 viewBox, so it renders smaller than

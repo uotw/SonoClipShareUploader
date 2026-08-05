@@ -57,11 +57,7 @@
     /* The drop box's dashed rule. */
     --scs-dropzone: var(--scs-border-strong);
 
-    /* Drawn white, not inverted: there is a real white SVG now, so the filter
-       hack that stood in for one is gone. Everything else that used to need it
-       -- home, and the two archive buttons -- is a font glyph now and takes
-       colour like text. */
-    --scs-logo: url('../img/logo_white.svg');
+    /* NOTE: the logo images are NOT tokens -- see the #logo rules below. */
 }
 
 :root[data-theme="classic"] {
@@ -91,20 +87,33 @@
 
     --scs-dropzone: #999;
 
-    --scs-logo: url('../img/logo_black.svg');
+
 }
 
 /* ---------------------------------------------------------------------------
  * Applying the theme to things that are not a colour declaration.
  * ------------------------------------------------------------------------- */
 
-/* Two files, one per theme, swapped by a token so the correct one is in the
-   very first paint -- no JS, and nothing to flip after the fact. */
+/* Two files, one per theme, swapped in CSS so the correct one is in the very
+   first paint -- no JS, nothing to flip afterwards.
+   
+   DECLARED AS RULES, NOT AS A CUSTOM PROPERTY. A relative url() inside a custom
+   property resolves against the DOCUMENT rather than the stylesheet, because
+   the value substitutes as raw tokens -- so `../img/...` pointed one level
+   above the app and the logo silently vanished. It happened to work in Electron
+   25 (Chromium 114, which resolved against the stylesheet) and broke in current
+   Chrome, which means an Electron upgrade would have blanked it with no code
+   change at all. In an ordinary rule the URL is stylesheet-relative in every
+   engine. */
 #logo {
-    background-image: var(--scs-logo);
+    background-image: url('../img/logo_white.svg');
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
+}
+
+:root[data-theme="classic"] #logo {
+    background-image: url('../img/logo_black.svg');
 }
 
 /* ---- the theme toggle ------------------------------------------------- */
@@ -112,6 +121,29 @@
 /* Sits beside #home, which style.css pins at top:50px right:50px with a 100px
    image. The glyph is text rather than a fifth PNG: two more assets to keep in
    sync, for a control that is one character wide. */
+/* Sign out lives with the other header controls. It exists BECAUSE the session
+   now persists: a stored credential with no way to clear it is the wrong thing
+   to leave on a workstation two people share. */
+#signout {
+    position: absolute;
+    top: 12px;
+    right: 128px;
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+    text-align: center;
+    /* Matched to #home. At 18px next to a 26px house and a bordered toggle it
+       read as decoration and got missed. */
+    font-size: 26px;
+    color: var(--scs-text-secondary);
+    cursor: pointer;
+}
+
+#signout:hover {
+    color: var(--scs-text);
+    transition: color .2s ease-out;
+}
+
 #themetoggle {
     position: absolute;
     top: 12px;
@@ -133,4 +165,36 @@
     color: var(--scs-text);
     background: var(--scs-surface-hover);
     transition: background .2s ease-out, color .2s ease-out;
+}
+
+/* ---- "a newer version is available" ----------------------------------- */
+
+/* Replaces the banner the Auth0 login page used to show. That worked by
+   parsing the app version out of a User-Agent we set on the embedded auth
+   window -- a trick that dies the moment sign-in moves to the user's browser.
+   The app knows its own version and appversion.php is public and CORS-enabled,
+   so it can just ask. Nothing about this depends on how the user signs in. */
+#updatebanner {
+    display: none;
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 620px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: .85em;
+    color: var(--scs-text-on-accent);
+    background: var(--scs-accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 10;
+}
+
+#updatelink {
+    margin-left: 10px;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
 }

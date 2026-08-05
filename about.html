@@ -3,7 +3,7 @@
    <head>
       <meta charset="UTF-8">
       <title>About SonoClipShare Uploader</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <!-- Fonts FIRST: style.css resolves --scs-font against it, and without
            this every font-family in there is an invalid declaration. -->
       <link rel="stylesheet" type="text/css" href="css/fonts.css">
@@ -20,43 +20,132 @@
           } catch (e) { /* default (dark) stands */ }
         })();
       </script>
-      <link rel="stylesheet" type="text/css" href="css/style.css">
-      <style>
-      body{
-         margin: 5px;
+   <style>
+      body {
+         margin: 0;
+         padding: 30px 34px 36px;
+         background: var(--scs-bg);
+         color: var(--scs-text);
+         font-family: var(--scs-font);
+         font-size: 13px;
+         line-height: 1.55;
       }
-      a {
-      text-decoration:none;
+      header {
+         display: flex;
+         align-items: center;
+         gap: 14px;
+         padding-bottom: 16px;
+         margin-bottom: 20px;
+         border-bottom: 1px solid var(--scs-border);
       }
-      /* Was #0099ff, which belonged to no theme -- see the same note in the
-         site's tokens.css. The accent moves with the theme; the classic one is
-         greyscale, so a link there reads as emphasis rather than as a colour. */
-      a:link { color: var(--scs-accent); }
+      #logo {
+         width: 52px;
+         height: 52px;
+         flex: 0 0 auto;
+         background-repeat: no-repeat;
+         background-position: center;
+         background-size: contain;
+      }
+      h1 {
+         font-family: var(--scs-font-title);
+         font-size: 19px;
+         font-weight: 700;
+         margin: 0;
+      }
+      .sub { color: var(--scs-text-muted); font-size: 12px; }
+      h2 {
+         font-size: 11px;
+         font-weight: 700;
+         letter-spacing: .09em;
+         text-transform: uppercase;
+         color: var(--scs-text-muted);
+         margin: 24px 0 8px;
+      }
+      p { margin: 0 0 8px; }
+      dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; }
+      dt { color: var(--scs-text-secondary); }
+      dd { margin: 0; }
+      ul { margin: 0; padding-left: 18px; }
+      li { margin-bottom: 5px; }
+      a { color: var(--scs-accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      code { font-family: var(--scs-font-mono); font-size: .92em; }
+      footer {
+         margin-top: 26px;
+         padding-top: 14px;
+         border-top: 1px solid var(--scs-border);
+         color: var(--scs-text-muted);
+         font-size: 11.5px;
+      }
    </style>
    <script>
       window.$ = window.jQuery = require('jquery');
-          var shell = require('electron').shell;
-    //open links externally by default
-    $(document).on('click', 'a[href^="http"]', function(event) {
-        event.preventDefault();
-        shell.openExternal(this.href);
-    });
- </script>
+      var shell = require('electron').shell;
+      // Open links in the user's browser rather than replacing this window.
+      $(document).on('click', 'a[href^="http"]', function(event) {
+          event.preventDefault();
+          shell.openExternal(this.href);
+      });
+   </script>
    </head>
    <body>
-    <div>The SonoClipShare Uploader is now open source, and is released under a MIT License</div>
-    <ul>
-      <li>Source code for SonoClipShare Uploader can be viewed or forked from <a href="https://github.com/uotw/SonoClipShareUploader">here.</a></li>
-      <li>Complete license information can be viewed <a href="https://github.com/uotw/SonoClipShareUploader/blob/master/LICENSE.md">here.</a></li>
-    </ul>
-      <div>I wish to give credit for the following icon used. This Noun Project icon is licensed under <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a></div>
+      <header>
+         <div id="logo"></div>
+         <div>
+            <h1>SonoClipShare Uploader</h1>
+            <div class="sub">Version <span id="version">…</span></div>
+         </div>
+      </header>
+
+      <p>De-identifies ultrasound clips and stills <strong>on this computer</strong> — cropping the
+         banner area and stripping all metadata — and uploads the result to your archive on
+         sonoclipshare.com. Nothing leaves the machine until it has been de-identified.</p>
+
+      <h2>License</h2>
+      <p>Open source under the MIT License. Copyright &copy; 2023 Ben Smith.</p>
       <ul>
-      <li><a href="https://thenounproject.com/RareSloth/uploads/?i=218993">Undo</a> (modified) By RareSloth, US from the Noun Project</li>
-   </ul>
-      <div>Other important credits for SonoClipShare Uploader include:</div>
+         <li><a href="https://github.com/uotw/SonoClipShareUploader">Source code on GitHub</a></li>
+         <li><a href="https://github.com/uotw/SonoClipShareUploader/blob/master/LICENSE.txt">Full license text</a></li>
+      </ul>
+
+      <h2>Third-party software</h2>
       <ul>
-      <li>The slider in SonoClipShare Uploader is generated using <a href="https://refreshless.com/nouislider/">noUiSlider</a> under the terms of the <a href="http://www.wtfpl.net/about/">WTFPL</a></li>
-      <li>And most importantly, this software uses code of <a href=http://ffmpeg.org>FFmpeg</a> licensed under the <a href=http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>LGPLv2.1</a> and its source can be downloaded <a href=https://github.com/FFmpeg/FFmpeg>here</a></li>
-   </ul>
+         <li><strong>FFmpeg</strong> — used for all de-identification and encoding, under the
+            <a href="http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html">LGPL v2.1</a>.
+            Source: <a href="https://github.com/FFmpeg/FFmpeg">github.com/FFmpeg/FFmpeg</a></li>
+         <li><strong>Font Awesome Free</strong> — icons under
+            <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, fonts under
+            <a href="https://scripts.sil.org/OFL">SIL OFL 1.1</a>.
+            <a href="https://fontawesome.com">fontawesome.com</a></li>
+         <li><strong>Inter</strong>, <strong>Manrope</strong> and <strong>JetBrains Mono</strong> —
+            typefaces under <a href="https://scripts.sil.org/OFL">SIL OFL 1.1</a></li>
+         <li><strong>Electron</strong>, <strong>jQuery</strong>, <strong>axios</strong>,
+            <strong>electron-store</strong> and <strong>electron-updater</strong> — MIT</li>
+      </ul>
+
+      <h2>Build</h2>
+      <dl>
+         <dt>Application</dt><dd><span id="v-app">…</span></dd>
+         <dt>Electron</dt><dd><span id="v-electron">…</span></dd>
+         <dt>Chromium</dt><dd><span id="v-chrome">…</span></dd>
+         <dt>Node</dt><dd><span id="v-node">…</span></dd>
+      </dl>
+
+      <footer>
+         Published by Core Ultrasound, LLC. Updates install automatically when you quit the app.
+      </footer>
+
+      <script>
+         // The version arrives as a query parameter rather than through
+         // @electron/remote: this window is opened by main.js, which knows it,
+         // and that avoids depending on remote being enabled for this
+         // webContents.
+         var appVersion = new URLSearchParams(window.location.search).get('v') || 'unknown';
+         document.getElementById('version').textContent = appVersion;
+         document.getElementById('v-app').textContent = appVersion;
+         document.getElementById('v-electron').textContent = process.versions.electron;
+         document.getElementById('v-chrome').textContent = process.versions.chrome;
+         document.getElementById('v-node').textContent = process.versions.node;
+      </script>
    </body>
 </html>
