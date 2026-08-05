@@ -311,6 +311,10 @@ function createmainWindow(token, authWindow) {
  * the user next quits. Nothing here calls quitAndInstall(): this app can be
  * midway through de-identifying and uploading a study, and no update is worth
  * interrupting that.
+ *
+ * Verified end to end on the 2.7.0 -> 2.7.1 release: a signed, notarized build
+ * found the update, downloaded it in the background, and installed it on quit,
+ * with no button pressed. 2.7.1 exists for exactly that test.
  */
 function initAutoUpdater() {
   // In development there is no feed and electron-updater throws on the first
