@@ -918,9 +918,13 @@ ipcRenderer.on('update-offer', function (event, newVersion) {
 // that. main.js installs it on quit.
 ipcRenderer.on('update-downloaded', function (event, newVersion) {
 	updaterOwnsBanner = true;
-	$('#updatetext').text('Version ' + (newVersion || 'update') +
-		' downloaded — it will install when you quit.');
-	$('#updatelink').hide();
+	$('#updatetext').text('Version ' + (newVersion || 'update') + ' is ready.');
+	// Offer the restart, but keep install-on-quit as the promise: someone who
+	// ignores this still gets the update, and main.js refuses to restart while
+	// an upload is running.
+	$('#updatelink').text('Restart now').show().off('click').on('click', function () {
+		ipcRenderer.send('install-update');
+	});
 	$('#updatebanner').fadeIn();
 });
 

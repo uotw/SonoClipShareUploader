@@ -437,6 +437,29 @@ ipcMain.on('download-update', function () {
   startDownloadWhenIdle();
 });
 
+// "Restart to update" on the banner.
+//
+// quitAndInstall() is otherwise never called: the update installs on quit, so
+// nothing has to interrupt anyone. This is the user ASKING to restart, which is
+// different -- but it still refuses mid-pipeline. Restarting during a
+// de-identify/upload run would abandon a study half-uploaded, and the person
+// clicking a small banner link is not thinking about that.
+ipcMain.on('install-update', function () {
+  if (pipelineBusy) {
+    dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
+      type: 'warning',
+      title: 'Upload in progress',
+      message: 'Not restarting yet — an upload is still running.',
+      detail: 'The update will install by itself when you quit, or you can ' +
+              'restart once this study has finished uploading.',
+      buttons: ['OK']
+    }).catch(function () {});
+    return;
+  }
+  // Give the window a moment to paint the click before it disappears.
+  setTimeout(function () { autoUpdater.quitAndInstall(); }, 150);
+});
+
 // SIGN-IN HAPPENS IN THE USER'S BROWSER, NOT IN THIS APP.
 //
 // The authorize URL is opened with shell.openExternal and Auth0 returns through
