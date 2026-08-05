@@ -49,6 +49,13 @@ function checkToken() {
     return id_token;
 }
 
+// The API access token, for `Authorization: Bearer`. Deliberately NOT falling
+// back to the ID token: the API checks the audience claim and would reject it
+// with a 401 that looks like an expired session rather than a wrong token.
+function checkApiToken() {
+    return remote.getGlobal('token').apitoken;
+}
+
 console.log('tempdir: ' + remote.getGlobal('workdirObj').prop1);
 var previewfile = path.join(workdir,'preview.png');
 previewfile=previewfile.split(path.sep).join(path.posix.sep);
@@ -559,8 +566,9 @@ $('#cropbtn').click(function() {
 			// THIS number becomes the scan_id. uploadapp5.php parses
 			// "NNN_<n>.<rest>" and takes <n> — the artifact basename, not the
 			// NNN ordering prefix — so continuing an existing archive means
-			// starting <n> after its highest scan. archivesapp.php supplies
-			// that as `next_scan`; it is 0 for a new archive, giving 1, 2, 3…
+			// starting <n> after its highest scan. The API's my-archives and
+			// shared-archives supply that as `next_scan`; it is 0 for a new
+			// archive, giving 1, 2, 3…
 			// exactly as before.
 			//
 			// Restarting at 1 instead is what overwrote 001.mp4 and inserted a
@@ -797,17 +805,31 @@ function addfilestatus() {
 
 // ---- "add to an existing Archive" picker ------------------------------------
 //
-// Backed by archivesapp.php, which lists the archives you own AND the ones
-// other people have shared with you, searched and paged server-side. The old
-// myarchivesapp.php <select> could do neither: it returned every archive you
-// own in one unfiltered array, and had no way to express "this one is Jane's".
+// Backed by THE API -- the same my-archives and shared-archives endpoints the
+// phone app and the website's own upload picker already use. An earlier draft
+// added a new webroot endpoint (archivesapp.php) for this; it was dropped
+// because the API already answers exactly this question, with server-side
+// search, paging and sorting tuned for the heaviest accounts (1,589 archives
+// owned, 10,269 shared). One definition of "archives I can upload to", shared
+// by all three clients.
+//
+// UPLOADS ARE UNAFFECTED and still go to uploadapp5.php. That endpoint exists
+// precisely because this app crops, strips metadata and encodes CLIENT-SIDE
+// and uploads finished artifacts: it does NO transcoding, unlike uploadCuda
+// and the API's own upload-media, which re-encode everything they receive.
+// Consolidating onto cuda was tried and abandoned on 2026-07-31 for that
+// reason -- pure waste and a quality loss. Only the LISTING moved.
+//
+// AUTH DIFFERS BETWEEN THE TWO. The API needs `Authorization: Bearer <API
+// access token>`; uploadapp5 needs `?token=<ID token>`. One sign-in yields
+// both -- see getAuthConfig() in main.js.
 //
 // The picker carries `next_scan` through to the upload. uploadapp5.php takes
 // scan_id straight from the NNN_ filename prefix, so appending to an archive
 // that already has 7 scans while numbering from 001 overwrites 001.mp4 and
 // duplicates its scans row. See uploadSeq in the upload handler.
 
-var ARCHIVES_ENDPOINT = 'https://www.sonoclipshare.com/archivesapp.php';
+var API_ENDPOINT = 'https://www.sonoclipshare.com/api/v1/mobile.php';
 var PICKER_PAGE_SIZE = 30;
 
 var selectedArchive = null;    // the row the user picked, or null
@@ -816,12 +838,19 @@ var existingScanOffset = 0;    // where this upload's NNN_ prefixes start
 var picker = {
 	q: '',
 	scope: 'all',
-	page: 0,
 	total: 0,
 	loaded: 0,
 	loading: false,
-	req: null,
-	searchTimer: null
+	searchTimer: null,
+	// Retires in-flight responses when the search or scope changes. Replaces
+	// the single `req` handle, which could only abort one of the two requests
+	// the merge now issues.
+	seq: 0,
+	// One cursor per source; the merge pulls from whichever has the newer head.
+	src: {
+		mine:   { page: 0, done: false, buf: [], total: 0, error: null },
+		shared: { page: 0, done: false, buf: [], total: 0, error: null }
+	}
 };
 
 function esc(s) {
@@ -892,72 +921,171 @@ function selectArchiveRow($row) {
 	if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'nearest' }); }
 }
 
+// One API row -> the shape archiveRow()/countsLabel()/ownerLabel() already
+// render. Kept as an adapter rather than rewriting the renderers, so the only
+// thing that changed is where the data comes from.
+function normalizeArchive(kind, r) {
+	var counts = r.media_count || {};
+	var by = r.shared_by || {};
+	return {
+		folder: r.id,
+		title: r.title,
+		// my-archives calls it `created`, shared-archives `updated`; both are
+		// archives.ts_update, so the merge below compares like with like.
+		date: kind === 'mine' ? r.created : r.updated,
+		mp4: counts.videos || 0,
+		jpg: counts.images || 0,
+		thumb: r.thumbnail_url || null,
+		scope: kind === 'mine' ? 'mine' : 'shared',
+		owner_name: kind === 'shared' ? (by.name || null) : null,
+		owner_email: kind === 'shared' ? (by.email || null) : null,
+		// Added to both endpoints for this client. Absent = an older server;
+		// 0 then makes the upload number from 001, which is the old behaviour
+		// rather than a crash.
+		next_scan: r.next_scan || 0
+	};
+}
+
+function pickerKinds() {
+	if (picker.scope === 'mine') { return ['mine']; }
+	if (picker.scope === 'shared') { return ['shared']; }
+	return ['mine', 'shared'];
+}
+
+function archiveDateValue(row) {
+	var t = Date.parse(String(row && row.date || '').replace(' ', 'T'));
+	return isNaN(t) ? 0 : t;
+}
+
+// Fetch the next page of one source into its buffer. Resolves either way --
+// a failure marks that source done and records the error, so one dead source
+// cannot wedge the merge.
+function fillBuffer(kind, seq) {
+	var s = picker.src[kind];
+	if (s.buf.length || s.done) { return $.Deferred().resolve().promise(); }
+
+	return $.ajax({
+		cache: false,
+		url: API_ENDPOINT,
+		dataType: 'json',
+		type: 'GET',
+		headers: { Authorization: 'Bearer ' + checkApiToken() },
+		data: {
+			endpoint: kind === 'mine' ? 'my-archives' : 'shared-archives',
+			page: s.page + 1,
+			limit: PICKER_PAGE_SIZE,
+			search: picker.q
+		}
+	}).then(function(response) {
+		if (seq !== picker.seq) { return; }          // superseded by a newer search
+		var d = (response && response.data) ? response.data : response;
+		var rows = (d && d.archives) || [];
+		var pag = (d && d.pagination) || {};
+		s.page = pag.page || (s.page + 1);
+		s.total = typeof pag.total === 'number' ? pag.total : rows.length;
+		rows.forEach(function(r) { s.buf.push(normalizeArchive(kind, r)); });
+		if (!rows.length || (pag.total_pages && s.page >= pag.total_pages)) { s.done = true; }
+	}, function(xhr) {
+		if (seq !== picker.seq) { return; }
+		s.done = true;
+		s.error = xhr && xhr.status ? xhr.status : 'network';
+		console.error('Archive list failed:', kind, s.error, xhr && xhr.responseText);
+	});
+}
+
+// Emit up to `want` rows in date order across the active sources.
+//
+// A k-way merge rather than "fetch page N of both and concatenate": each
+// source is date-descending on its own, but their pages interleave, so
+// concatenating would put a 2019 archive of yours above one shared with you
+// yesterday. Pull from whichever source currently has the newer head, topping
+// up a buffer only when it runs dry.
+function emitMerged(want, seq) {
+	var out = [];
+	function step() {
+		if (seq !== picker.seq || out.length >= want) {
+			return $.Deferred().resolve(out).promise();
+		}
+		var kinds = pickerKinds();
+		return $.when.apply($, kinds.map(function(k) { return fillBuffer(k, seq); }))
+			.then(function() {
+				if (seq !== picker.seq) { return out; }
+				var bestKind = null;
+				kinds.forEach(function(k) {
+					if (!picker.src[k].buf.length) { return; }
+					if (bestKind === null ||
+						archiveDateValue(picker.src[k].buf[0]) >
+						archiveDateValue(picker.src[bestKind].buf[0])) {
+						bestKind = k;
+					}
+				});
+				if (bestKind === null) { return out; }    // every source exhausted
+				out.push(picker.src[bestKind].buf.shift());
+				return step();
+			});
+	}
+	return step();
+}
+
 // Load one page. reset = start over (new search or scope).
 function loadArchives(reset) {
-	var currentToken = checkToken();
-	if (!currentToken) {
+	if (!checkApiToken()) {
 		setPickerStatus('Not signed in — restart the app and log in again.');
 		return;
 	}
-	if (picker.loading) {
-		if (!reset) { return; }
-		if (picker.req) { picker.req.abort(); }
-	}
+	if (picker.loading && !reset) { return; }
 
 	if (reset) {
-		picker.page = 0;
+		// Bumping the sequence retires every in-flight request instead of
+		// aborting it: two sources means two requests, and an abort on one
+		// used to leave the other's response to land on a cleared list.
+		picker.seq++;
 		picker.loaded = 0;
-		picker.total = 0;
+		picker.src = {
+			mine:   { page: 0, done: false, buf: [], total: 0, error: null },
+			shared: { page: 0, done: false, buf: [], total: 0, error: null }
+		};
 		$('#archivelist').empty().scrollTop(0);
 		selectArchiveRow(null);
 	}
 
+	var seq = picker.seq;
 	picker.loading = true;
-	setPickerStatus(picker.page === 0 ? 'Loading archives…' : 'Loading more…');
+	setPickerStatus(picker.loaded === 0 ? 'Loading archives…' : 'Loading more…');
 
-	picker.req = $.ajax({
-		cache: false,
-		url: ARCHIVES_ENDPOINT,
-		dataType: 'json',
-		type: 'GET',
-		data: {
-			token: currentToken,
-			q: picker.q,
-			scope: picker.scope,
-			page: picker.page + 1,
-			limit: PICKER_PAGE_SIZE
-		}
-	}).done(function(response) {
+	emitMerged(PICKER_PAGE_SIZE, seq).then(function(rows) {
+		if (seq !== picker.seq) { return; }
 		picker.loading = false;
-		if (!response || response.status !== 'success') {
-			setPickerStatus('Could not load archives' + (response && response.message ? ': ' + response.message : '.'));
-			return;
-		}
-
-		picker.page = response.page;
-		picker.total = response.total;
-		picker.loaded += response.archives.length;
 
 		var $list = $('#archivelist');
-		response.archives.forEach(function(a) { $list.append(archiveRow(a)); });
+		rows.forEach(function(a) { $list.append(archiveRow(a)); });
+		picker.loaded += rows.length;
 
-		if (picker.total === 0) {
+		var kinds = pickerKinds();
+		var total = 0, failed = 0, exhausted = true;
+		kinds.forEach(function(k) {
+			total += picker.src[k].total;
+			if (picker.src[k].error) { failed++; }
+			if (!picker.src[k].done || picker.src[k].buf.length) { exhausted = false; }
+		});
+		picker.total = total;
+
+		if (failed === kinds.length) {
+			setPickerStatus(picker.src[kinds[0]].error === 401
+				? 'Session expired — restart the app and log in again.'
+				: 'Could not reach SonoClipShare. Check your connection and try again.');
+			return;
+		}
+		if (picker.loaded === 0) {
 			setPickerStatus(picker.q
 				? 'No archives match “' + picker.q + '”.'
 				: (picker.scope === 'shared'
 					? 'Nobody has shared an archive with you yet.'
 					: 'You have no archives yet — go back and create one.'));
 		} else {
-			setPickerStatus('Showing ' + picker.loaded + ' of ' + picker.total +
-				(picker.loaded < picker.total ? ' — scroll for more' : ''));
+			setPickerStatus('Showing ' + picker.loaded + ' of ' + total +
+				(exhausted ? '' : ' — scroll for more'));
 		}
-	}).fail(function(xhr, status) {
-		picker.loading = false;
-		if (status === 'abort') { return; }   // superseded by a newer search
-		console.error('Archive list failed:', status, xhr && xhr.status, xhr && xhr.responseText);
-		setPickerStatus(xhr && xhr.status === 401
-			? 'Session expired — restart the app and log in again.'
-			: 'Could not reach SonoClipShare. Check your connection and try again.');
 	});
 }
 
@@ -1068,7 +1196,8 @@ $('#okselect').click(function() {
 	// Continue this archive's scan numbering instead of restarting at 001.
 	// Without it the first clip overwrites 001.mp4 and inserts a duplicate
 	// scans row — which on a shared archive means destroying someone else's
-	// media. See `next_scan` in server/archivesapp.php.
+	// media. `next_scan` comes from the API listing; it counts soft-deleted
+	// scans too, because a deleted row keeps its id AND its file on disk.
 	existingScanOffset = selectedArchive.next_scan || 0;
 
 	var owner = ownerLabel(selectedArchive);

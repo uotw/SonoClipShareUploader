@@ -29,7 +29,11 @@ const {
 
 // Initialize global variables early - BEFORE any windows are created
 global.workdirObj = { prop1: null };
-global.token = { thetoken: null };
+// thetoken   -- the ID token, for the ?token= upload endpoints (unchanged)
+// apitoken   -- the API access token, for Authorization: Bearer
+// Kept as separate fields rather than one "the token", because which one is
+// correct depends entirely on who is being called. See getAuthConfig().
+global.token = { thetoken: null, apitoken: null };
 
 // const log = require('electron-log');
 // log.initialize({ spyRendererConsole: true});
@@ -46,12 +50,38 @@ if (isWindows) {
   var mainWindowHeight = 750;
 }
 
+// TWO TOKENS, ONE SIGN-IN.
+//
+// The upload endpoint and the API authenticate differently and cannot share a
+// token:
+//
+//   uploadapp5.php  ?token=<ID token>      -> POSTed to Auth0 /tokeninfo,
+//                                             which only accepts id_tokens
+//   /api/v1/...     Authorization: Bearer  -> verified locally against JWKS,
+//                                             and requires aud = the API's id
+//
+// Asking for the API audience while KEEPING `openid` in scope returns both in
+// one exchange: an id_token because of openid, and an API access_token because
+// of the audience. So the picker can use the API without changing a single
+// server file on the upload path.
+//
+// AUDIENCE IS A NAME, NOT AN ADDRESS. api.sonoclipshare.com has no DNS record
+// and serves nothing; the string is just what the API was called when it was
+// registered, and the server compares it literally (SonoClipApi.php ~:1594).
+// The trailing slash is part of it -- drop it and every call 401s. It must
+// match the phone app's src/config/auth0Config.js byte for byte.
+//
+// offline_access asks for a refresh token. Without it the access_token expires
+// mid-session and a long study upload dies on a 401 that reads like a server
+// fault. Needs "Allow Offline Access" enabled on the API in Auth0.
+var SCS_API_AUDIENCE = 'https://api.sonoclipshare.com/';
+
 function getAuthConfig() {
   var authConfig = {
     clientId: 'XB0zarh086Hr8vx6m3G3sQZz2SAaOjrQ', //new
     authorizeEndpoint: 'https://ultrasoundjelly.auth0.com/authorize',
-    audience: 'https://ultrasoundjelly.auth0.com/userinfo',
-    scope: 'openid',
+    audience: SCS_API_AUDIENCE,
+    scope: 'openid offline_access',
     redirectUri: 'https://ultrasoundjelly.auth0.com/mobile',
     tokenEndpoint: 'https://ultrasoundjelly.auth0.com/oauth/token'
   };
@@ -101,7 +131,12 @@ function createmainWindow(token, authWindow) {
     
     // Try id_token first, then access_token as fallback
     var tokenValue = responsetoken.id_token || responsetoken.access_token;
-    
+
+    // The API token is kept SEPARATELY and is never used as a fallback for the
+    // upload endpoints: /tokeninfo rejects an access_token, so falling back
+    // would turn a working upload into a confusing 401.
+    global.token.apitoken = responsetoken.access_token || null;
+
     if (tokenValue) {
       // Update existing global token (don't create new object)
       global.token.thetoken = tokenValue;
