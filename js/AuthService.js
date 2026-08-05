@@ -57,16 +57,29 @@ var AuthService = function () {
                             timeout: 30000
                         };
 
-                        console.log('Making token request to:', options.url);
-                        console.log('Request data:', JSON.parse(options.body));
+                        // SILENCED, not tidied away. These printed the whole
+                        // exchange to stdout: the PKCE code_verifier and the
+                        // authorization code on the way out, then the response
+                        // object -- id_token, access_token and refresh_token in
+                        // full -- on the way back. `npm start` sends that to a
+                        // terminal, and CI or a log file would keep it. The
+                        // refresh token in particular does not expire on its
+                        // own, so a pasted log is a durable credential.
+                        //
+                        // Left in place rather than deleted: they are the fastest
+                        // way to see what Auth0 actually returned when sign-in
+                        // misbehaves. Uncomment for a debugging run, and treat
+                        // whatever it prints as a live credential.
+                        // console.log('Making token request to:', options.url);
+                        // console.log('Request data:', JSON.parse(options.body));
 
                         return (0, _axios2.default)(axiosConfig).then(function (response) {
-                            console.log('Auth response received:', response.data);
-                            console.log('Response keys:', Object.keys(response.data));
-                            
+                            // console.log('Auth response received:', response.data);
+                            // console.log('Response keys:', Object.keys(response.data));
+
                             // Check if we have an id_token or access_token
                             if (response.data.id_token) {
-                                console.log('Found id_token, length:', response.data.id_token.length);
+                                // console.log('Found id_token, length:', response.data.id_token.length);
                             } else if (response.data.access_token) {
                                 // NO LONGER ALIASED INTO id_token. The two are
                                 // not interchangeable now: the upload endpoint
