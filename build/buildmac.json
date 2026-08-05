@@ -19,9 +19,40 @@
     "gatekeeperAssess": false,
     "identity": "Core Ultrasound, LLC (6VK3JZ7LRU)",
     "notarize": false,
-    "target": {
-      "target": "dmg",
-      "arch": "x64"
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "extendInfo": {
+      "NSDocumentsFolderUsageDescription": "SonoClipShare Uploader reads the ultrasound clips and stills you add from here. They are de-identified on this Mac \u2014 cropped and stripped of metadata \u2014 before anything is uploaded.",
+      "NSDesktopFolderUsageDescription": "SonoClipShare Uploader reads the ultrasound clips and stills you add from here. They are de-identified on this Mac \u2014 cropped and stripped of metadata \u2014 before anything is uploaded.",
+      "NSDownloadsFolderUsageDescription": "SonoClipShare Uploader reads the ultrasound clips and stills you add from here. They are de-identified on this Mac \u2014 cropped and stripped of metadata \u2014 before anything is uploaded.",
+      "NSRemovableVolumesUsageDescription": "SonoClipShare Uploader reads ultrasound clips and stills from connected drives, such as a USB stick exported from an ultrasound machine."
     }
-  }
+  },
+  "protocols": [
+    {
+      "name": "SonoClipShare Uploader",
+      "schemes": [
+        "sonoclipshare"
+      ]
+    }
+  ],
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "uotw",
+      "repo": "SonoClipShareUploader"
+    }
+  ]
 }

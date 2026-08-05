@@ -154,6 +154,15 @@ var AuthService = function () {
     }, {
         key: 'isValidAccessCodeCallBackUrl',
         value: function isValidAccessCodeCallBackUrl(callbackUrl) {
+            // TWO DIFFERENT URLs, deliberately. Auth0 redirects to the HTTPS
+            // redirectUri (the only kind that skips the confirmation prompt),
+            // and that page bounces to deeplinkUri, which is what actually
+            // arrives here. The token exchange still sends redirectUri, because
+            // that is what /authorize was asked for and the two must match.
+            if (this.config.deeplinkUri &&
+                callbackUrl.indexOf(this.config.deeplinkUri) > -1) {
+                return true;
+            }
             return callbackUrl.indexOf(this.config.redirectUri) > -1;
         }
     }], [{

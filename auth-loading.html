@@ -4,18 +4,32 @@
     <!-- The sign-in splash is the first screen of the app, so it takes the
          site's fonts too. Linked rather than inlined: same tokens as index.html. -->
     <link rel="stylesheet" type="text/css" href="./css/fonts.css">
+    <link rel="stylesheet" type="text/css" href="./css/themes.css">
+    <script>
+      // Same pre-paint read as index.html. Without it this screen kept its own
+      // palette and a dark app opened on a blue-grey splash that matched
+      // nothing else.
+      (function () {
+        try {
+          var Store = require('electron-store');
+          if (new Store().get('theme') === 'classic') {
+            document.documentElement.setAttribute('data-theme', 'classic');
+          }
+        } catch (e) { /* dark is the default */ }
+      })();
+    </script>
     <style>
         body {
             margin: 0;
             padding: 0;
             height: 100vh;
-            background: radial-gradient(#40404b, #111118);
+            background: var(--scs-bg);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             font-family: var(--scs-font);
-            color: white;
+            color: var(--scs-text);
             text-rendering: optimizeLegibility;
             font-weight: 300;
         }
@@ -23,8 +37,8 @@
         .spinner {
             width: 40px;
             height: 40px;
-            border: 4px solid rgba(255,255,255,0.3);
-            border-top: 4px solid white;
+            border: 4px solid var(--scs-border-strong);
+            border-top: 4px solid var(--scs-text);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin-bottom: 20px;
@@ -64,19 +78,72 @@
             font-weight: 300;
             text-rendering: optimizeLegibility;
             text-align: center;
-            color: rgba(255,255,255,0.8);
+            color: var(--scs-text-secondary);
             font-size: 18px;
             line-height: 30px;
             padding: 0 10px;
             box-sizing: initial;
         }
+        /* handleAuthCallback() in main.js sets data-auth-error on <body> when
+           the token exchange fails, so the spinner stops pretending. */
+        .failed, .browser, .signedout { display: none; }
+        /* Signed out: no spinner, because nothing is happening -- the app is
+           waiting for the user, not the other way round. */
+        body[data-signed-out] .waiting  { display: none; }
+        body[data-signed-out] .spinner  { display: none; }
+        body[data-signed-out] .signedout { display: block; }
+        #signinbtn {
+            /* `auto` margins, because display:block on a button shrink-wraps to
+               its label and then sits at the left edge -- which is what made
+               this screen look misaligned under its centred heading. */
+            margin: 16px auto 0;
+            padding: 11px 34px;
+            font: inherit;
+            font-size: .95em;
+            color: var(--scs-text);
+            background: none;
+            border: 2px solid var(--scs-text);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #signinbtn:hover { background: var(--scs-text); color: var(--scs-bg); }
+        body[data-browser] .waiting { display: none; }
+        body[data-browser] .browser { display: block; }
+        body[data-auth-error] .waiting { display: none; }
+        body[data-auth-error] .failed  { display: block; }
+        body[data-auth-error] .spinner { display: none; }
+        .hint { opacity: .65; font-size: .85em; }
     </style>
 </head>
 <body>
     <div class="spinner"></div>
     <div class="banner">
         <h2>SonoClipShare Uploader</h2>
-        <p>Loading authentication...</p>
+        <!-- Sign-in happens in the user's browser now, so this window is a
+             waiting screen rather than a loading screen. Saying where to look
+             matters: the browser can open behind this window, and without a
+             prompt an unattended spinner reads as a hang. -->
+        <!-- Two waiting states. A returning user is resumed from a stored
+             credential in well under a second and never sees a browser, so
+             telling them to go and look at one is wrong -- main.js sets
+             data-browser only when it actually opens the tab. -->
+        <p class="waiting">Signing you in&hellip;</p>
+        <p class="browser">Continue signing in in your browser&hellip;<br>
+           <span class="hint">You can close that tab when it says you're done.</span></p>
+        <p class="failed">Sign-in didn't complete.<br>
+           <span class="hint">Quit and reopen the app to try again.</span></p>
+        <p class="signedout">You're signed out.</p>
+        <button id="signinbtn" class="signedout">Sign in</button>
     </div>
+<script>
+    // nodeIntegration is on for this window (main.js explains why): it loads
+    // only this local file, never remote content.
+    try {
+        var ipc = require('electron').ipcRenderer;
+        document.getElementById('signinbtn').addEventListener('click', function () {
+            ipc.send('start-sign-in');
+        });
+    } catch (e) { /* leaves the button inert rather than breaking the screen */ }
+</script>
 </body>
 </html>

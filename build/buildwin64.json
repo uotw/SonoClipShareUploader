@@ -24,8 +24,25 @@
     "target": [
       {
         "target": "nsis",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       }
     ]
-  }
+  },
+  "protocols": [
+    {
+      "name": "SonoClipShare Uploader",
+      "schemes": [
+        "sonoclipshare"
+      ]
+    }
+  ],
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "uotw",
+      "repo": "SonoClipShareUploader"
+    }
+  ]
 }

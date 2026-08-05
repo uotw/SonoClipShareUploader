@@ -92,10 +92,25 @@ jobs:
             echo "::endgroup::"
           done
 
+      # THE UPDATER FEED, NOT JUST THE INSTALLERS.
+      #
+      # electron-updater reads latest-mac.yml from the Release and downloads the
+      # .zip -- Squirrel.Mac cannot update from a .dmg. Publishing only the DMGs
+      # means the app never sees an update at all.
+      #
+      # latest-mac.yml is rewritten by each electron-builder run, so the x64
+      # build overwrites the arm64 one. Both are kept here under distinct names
+      # and merged in the release job.
+      - name: Stash the arm64 updater feed
+        run: cp dist/latest-mac.yml dist/latest-mac-arm64.yml || true
+
       - uses: actions/upload-artifact@v4
         with:
           name: mac-dmgs
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest-mac*.yml
           if-no-files-found: error
 
   windows:
@@ -126,7 +141,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/latest.yml
           if-no-files-found: error
 
   release:
@@ -138,12 +155,48 @@ jobs:
         with:
           path: artifacts
 
+      # ONE latest-mac.yml LISTING BOTH ARCHITECTURES.
+      #
+      # The two mac builds each produced their own, and electron-updater picks
+      # the entry matching the running machine -- so publishing only one of them
+      # would offer Intel builds to Apple Silicon users, or nothing at all. This
+      # takes the x64 feed as the base and appends the arm64 file entry.
+      - name: Merge the mac updater feeds
+        run: |
+          python3 - <<'EOF'
+          import glob, io, sys
+          arm = glob.glob('artifacts/**/latest-mac-arm64.yml', recursive=True)
+          x64 = [f for f in glob.glob('artifacts/**/latest-mac.yml', recursive=True)]
+          if not arm or not x64:
+              sys.exit('missing mac updater feed: arm=%s x64=%s' % (arm, x64))
+          base = open(x64[0]).read()
+          armtxt = open(arm[0]).read()
+          # pull the arm64 `files:` entry (url/sha512/size) out of its feed
+          lines = armtxt.splitlines()
+          start = next(i for i, l in enumerate(lines) if l.startswith('files:'))
+          entry = []
+          for l in lines[start+1:]:
+              if l and not l.startswith((' ', '-', '\t')):
+                  break
+              entry.append(l)
+          out = []
+          for l in base.splitlines():
+              out.append(l)
+              if l.startswith('files:'):
+                  out.extend(entry)
+          open(x64[0], 'w').write('\n'.join(out) + '\n')
+          print(open(x64[0]).read())
+          EOF
+
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.exe
+            artifacts/**/*.zip
+            artifacts/**/latest-mac.yml
+            artifacts/**/latest.yml
           fail_on_unmatched_files: true
           generate_release_notes: true
 

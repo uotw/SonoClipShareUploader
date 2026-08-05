@@ -29,6 +29,7 @@
     "@electron/remote": "^2.0.10",
     "axios": "^1.17.0",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.9",
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.1.0",
     "form-data": "^4.0.0",
