@@ -399,7 +399,12 @@ function progressend(uploadResponse) {
 			finallink = 'https://www.sonoclipshare.com/archive.php?&f=' + uploadResponse.upload_id;
 			$('#finallink').html(finallink);
 			$('#finallinkwrap').fadeIn();
-			$('#addornew').fadeIn();
+			// NOT #addornew as well. The two used to be shown together, which
+			// was survivable when #addornew sat in the normal flow below the
+			// link; it is now absolutely positioned and vertically centred, so
+			// the tiles land ON TOP of the archive link and cover the very
+			// thing the user just waited for. The Home button (which restores
+			// #addornew) is already visible for starting another upload.
 		} else {
 			$('#uploaderrors').html('Upload failed: ' + uploadResponse.message);
 			$('#uploaderrors').show();

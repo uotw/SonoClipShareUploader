@@ -83,12 +83,19 @@ html, body {
 }
  #finallinkwrap {
      display:none;
-     width: 800px;
-     margin: auto;
-     margin-top: 80px;
+     /* max-width, not width: a fixed 800px overflows a narrow window and
+        clips the archive URL -- the one thing on this screen. */
+     max-width: 800px;
+     margin: 120px auto 0;
+     padding: 0 33px;
+     box-sizing: border-box;
+     text-align: center;
 }
  #finallink{
      font-size:1.7em;
+     margin-top: 14px;
+     color: var(--scs-accent);
+     word-break: break-all;
 }
  #finallink:hover {
      cursor:pointer;
