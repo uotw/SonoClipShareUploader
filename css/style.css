@@ -83,19 +83,22 @@ html, body {
 }
  #finallinkwrap {
      display:none;
-     /* max-width, not width: a fixed 800px overflows a narrow window and
-        clips the archive URL -- the one thing on this screen. */
-     max-width: 800px;
-     margin: 120px auto 0;
+     /* Full width rather than a fixed 800px: the URL is set on ONE line (see
+        below) and 800px is narrower than that line, so a fixed width here is
+        exactly what forced the wrap. */
+     margin: 72px 0 0;
      padding: 0 33px;
      box-sizing: border-box;
      text-align: center;
 }
  #finallink{
-     font-size:1.7em;
-     margin-top: 14px;
+     /* 1.7em wrapped this URL mid-token, which reads as two broken links
+        rather than one. The address is a fixed shape -- archive.php plus a
+        10-character id -- so a size that fits it is a size that always fits. */
+     font-size:1.3em;
+     white-space: nowrap;
+     margin-top: 12px;
      color: var(--scs-accent);
-     word-break: break-all;
 }
  #finallink:hover {
      cursor:pointer;
@@ -189,6 +192,15 @@ html, body {
      width: auto;
      transform: translateY(-50%);
      margin-top: 0;
+}
+ /* THE FINISH SCREEN, where the tiles are not the only thing on the page.
+    v2.6 stacked the archive link above the tiles because #addornew was in
+    normal flow. Absolute centring (correct when the tiles ARE the page) put
+    them over the link instead. This puts them back under it. */
+ #addornew.afterupload {
+     position: static;
+     transform: none;
+     margin-top: 56px;
 }
  #addmessage, #newmessage {
      font-size: 1.5em;

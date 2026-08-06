@@ -399,12 +399,12 @@ function progressend(uploadResponse) {
 			finallink = 'https://www.sonoclipshare.com/archive.php?&f=' + uploadResponse.upload_id;
 			$('#finallink').html(finallink);
 			$('#finallinkwrap').fadeIn();
-			// NOT #addornew as well. The two used to be shown together, which
-			// was survivable when #addornew sat in the normal flow below the
-			// link; it is now absolutely positioned and vertically centred, so
-			// the tiles land ON TOP of the archive link and cover the very
-			// thing the user just waited for. The Home button (which restores
-			// #addornew) is already visible for starting another upload.
+			// The tiles come back, as they always did -- the finish screen is
+			// also the "what next" screen. `afterupload` drops #addornew out of
+			// its absolute vertical centring and into normal flow BENEATH the
+			// link; centred, it would paint on top of the archive URL, which is
+			// the one thing the user just waited for.
+			$('#addornew').addClass('afterupload').fadeIn();
 		} else {
 			$('#uploaderrors').html('Upload failed: ' + uploadResponse.message);
 			$('#uploaderrors').show();
@@ -793,9 +793,23 @@ $('#manualbtn').click(function() {
 		// does require is that the frame fill the canvas exactly, which is what
 		// `background-size: 100% 100%` in style.css guarantees.
 		var CROP_MAX_W = 900;
-		// 232 = 88 above (header) + ~144 below (caption, gap, and the OK button
-		// fixed at bottom:30px).
-		var cropMaxH = Math.max(240, window.innerHeight - 232);
+
+		// THE BAND IS MEASURED FROM THE HEADER, not from the top of the window.
+		//
+		// #canvaswrap is in normal flow directly after #maintitle, so its
+		// margin-top starts at the header's BOTTOM -- the stylesheet's flat 88px
+		// was 88px below a 73px header, putting the canvas at 161 and letting a
+		// full-height frame run 88px past the band into the OK button's row.
+		// Reading the header instead of hardcoding it also means the crop screen
+		// survives the header changing height (the update banner lives in it).
+		//
+		// 144 below covers the caption (#highlight, ~42px) plus the OK button,
+		// which is fixed at bottom:30px and about 56px tall.
+		var HEADER_FALLBACK = 73;   // 64 height + 1 border + 8 margin-bottom
+		var RESERVE_BELOW = 144;
+		var headerH = Math.round($('#maintitle').outerHeight(true)) || HEADER_FALLBACK;
+		var cropBand = Math.max(0, window.innerHeight - headerH - RESERVE_BELOW);
+		var cropMaxH = Math.max(240, cropBand);
 
 		var cropW = CROP_MAX_W;
 		var cropH = Math.round(CROP_MAX_W * canvasaspect);
@@ -804,8 +818,17 @@ $('#manualbtn').click(function() {
 			cropW = Math.round(cropMaxH / canvasaspect);
 		}
 
+		// Split whatever the frame does not use, so a short wide clip sits in
+		// the middle of the band rather than pinned under the header with all
+		// the slack below it. A frame that fills the band gets 0 and hugs the
+		// header, which is correct -- there is nothing to centre.
+		//
+		// Against cropBand, not cropMaxH: cropMaxH is floored at 240 and would
+		// overstate the room in a short window.
+		var cropTop = Math.max(0, Math.round((cropBand - cropH) / 2));
+
 		$('#myCanvas').attr('width', cropW).attr('height', cropH);
-		$('#canvaswrap').css('width', cropW + 'px');
+		$('#canvaswrap').css({ width: cropW + 'px', marginTop: cropTop + 'px' });
 		canvasheight = cropH;
 		$('#canvaswrap').fadeIn();
 		$('#highlight').fadeIn();
@@ -1506,7 +1529,9 @@ $('#okselect').click(function() {
 
 $('#cancelselect').click(function() {
 	$('#addselect').hide();
-	$('#addornew').fadeIn();
+	// Back to the tiles alone -- drop the after-upload flow positioning so they
+	// return to the middle of the window.
+	$('#addornew').removeClass('afterupload').fadeIn();
 });
 
 // UPDATED: Home button with unified progress cleanup
@@ -1525,7 +1550,7 @@ $('#home').click(function() {
 	
 	// Reset all UI elements
 	$('#activefile').hide();
-	$('#addornew').fadeIn();
+	$('#addornew').removeClass('afterupload').fadeIn();
 	$('#addselect').hide();
 	$('#canvaswrap').hide();
 	$('#clearbtn').hide();
