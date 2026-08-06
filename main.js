@@ -279,9 +279,18 @@ function createmainWindow(token, authWindow) {
     }
   });
 
-  // Updates are checked once the app is actually up, and never during sign-in:
-  // a background download must not compete with the first upload of a session.
-  setTimeout(initAutoUpdater, 8000);
+  // AS SOON AS THE WINDOW IS UP, not on a timer.
+  //
+  // Launch is the one moment we know nothing is uploading -- the user has not
+  // even chosen an archive yet -- so it is the best time to spend bandwidth.
+  // Finishing early is what keeps the download out of the way of the study;
+  // delaying it just moves it closer to when the upload starts. (The earlier
+  // 8-second wait was meant as protection and was never any: a ~5-100MB
+  // download runs far longer than eight seconds.)
+  //
+  // did-finish-load rather than a delay, because a manual-mode update sends the
+  // renderer a message and there has to be a renderer to receive it.
+  mainWindow.webContents.once('did-finish-load', initAutoUpdater);
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()
