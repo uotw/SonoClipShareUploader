@@ -343,6 +343,12 @@ function createmainWindow(token, authWindow) {
  */
 var UPDATE_MODE_KEY = 'updateMode';
 var SKIPPED_VERSION_KEY = 'skippedVersion';
+
+// Set while a check the USER started is in flight. A skipped version is hidden
+// from the automatic offer, but asking "check for updates" is the user
+// overriding that -- and the first version of this swallowed the result, so the
+// menu item appeared to do nothing at all.
+var manualCheckPending = false;
 var pipelineBusy = false;
 var pendingDownload = false;
 
@@ -399,8 +405,13 @@ function onUpdateAvailable(info) {
   var version = info && info.version;
   if (!version) { return; }
 
-  // Skipped means skipped -- for THAT version. A later one is still offered.
-  if (prefsStore.get(SKIPPED_VERSION_KEY) === version) {
+  // Skipped means skipped -- for THAT version, and only when we brought it up.
+  // If they asked, the skip is spent: show them, and forget it, or the menu
+  // would keep offering something it has already been told to forget.
+  if (manualCheckPending) {
+    manualCheckPending = false;
+    prefsStore.delete(SKIPPED_VERSION_KEY);
+  } else if (prefsStore.get(SKIPPED_VERSION_KEY) === version) {
     return;
   }
 
@@ -859,16 +870,34 @@ app.on("ready", function() {
             dialog.showMessageBox({ type: 'info', message: 'Updates are only available in an installed build.' });
             return;
           }
-          // An explicit check should answer even when there is nothing to say --
-          // silence would be indistinguishable from a broken updater.
-          autoUpdater.once('update-not-available', function () {
+          // An explicit check must always answer: either the update dialog, or
+          // "you are up to date", or an error. Silence is indistinguishable
+          // from a broken updater.
+          manualCheckPending = true;
+
+          var onNone, onSome;
+          onNone = function () {
+            manualCheckPending = false;
+            autoUpdater.removeListener('update-available', onSome);
             dialog.showMessageBox({
               type: 'info',
               title: 'No update',
               message: 'You are on the latest version (' + app.getVersion() + ').'
             });
-          });
+          };
+          // Paired removal, so a manual check that DOES find something cannot
+          // leave a listener behind to announce "up to date" during some later
+          // automatic check.
+          onSome = function () {
+            autoUpdater.removeListener('update-not-available', onNone);
+          };
+          autoUpdater.once('update-not-available', onNone);
+          autoUpdater.once('update-available', onSome);
+
           autoUpdater.checkForUpdates().catch(function (err) {
+            manualCheckPending = false;
+            autoUpdater.removeListener('update-not-available', onNone);
+            autoUpdater.removeListener('update-available', onSome);
             dialog.showMessageBox({
               type: 'warning',
               title: 'Could not check for updates',
