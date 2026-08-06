@@ -402,6 +402,10 @@ function onUpdateAvailable(info) {
 /**
  * electron-updater's own log, on disk.
  *
+ * (2.7.5 is the first release published while the previous version was already
+ * logging, so it is the first update whose size and differential behaviour are
+ * recorded rather than inferred.)
+ *
  * It reports the things that decide whether an update is a few megabytes or a
  * hundred -- most usefully `Download block maps (old: ..., new: ...)` and
  * whether the differential download succeeded or fell back. None of that
