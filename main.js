@@ -325,15 +325,21 @@ function createmainWindow(token, authWindow) {
  * AND NEVER DOWNLOADS WITHOUT BEING ASKED. autoDownload is off. An update is
  * ~110MB, and this app's users are on hospital and clinic connections where
  * that competes directly with the study they are trying to upload -- the very
- * thing they opened the app to do. So the first time an update appears the user
- * chooses, once, and the answer is remembered:
+ * thing they opened the app to do.
  *
- *   updateMode 'auto'   -- fetch in the background from now on
- *   updateMode 'manual' -- tell me, and I will decide each time
+ * Two states, following Sparkle, which is what Mac users already know:
+ *
+ *   updateMode 'auto'  -- fetch in the background from now on
+ *   updateMode 'ask'   -- the default: offer each new version and let them
+ *                         choose. Choosing "Download now" or "Skip" decides
+ *                         THIS release only; the next one asks again.
+ *
+ * SKIPPING IS NOT A POLICY. Skipping one version says "not this one", not
+ * "change how updates work forever" -- so it records the version and nothing
+ * else. Conflating the two silently changes a setting the user never touched.
  *
  * Even in 'auto' the download waits for the upload pipeline to be idle; see
- * startDownloadWhenIdle(). A skipped version is remembered so it is not offered
- * again, while later versions still are.
+ * startDownloadWhenIdle().
  */
 var UPDATE_MODE_KEY = 'updateMode';
 var SKIPPED_VERSION_KEY = 'skippedVersion';
@@ -367,7 +373,7 @@ function askAboutUpdates(version) {
     detail: 'Updates are around 110 MB. On a slow connection, downloading one ' +
             'while you are uploading a study will slow the upload down.\n\n' +
             'You can change this later from the menu.',
-    buttons: ['Download automatically from now on', 'Download this one only', 'Skip this version'],
+    buttons: ['Download automatically from now on', 'Download now', 'Skip this version'],
     defaultId: 0,
     cancelId: 2,
     noLink: true
@@ -378,11 +384,12 @@ function askAboutUpdates(version) {
       prefsStore.set(UPDATE_MODE_KEY, 'auto');
       startDownloadWhenIdle();
     } else if (res.response === 1) {
-      // One-off: they have chosen for this version, not for every future one.
-      prefsStore.set(UPDATE_MODE_KEY, 'manual');
+      // This release only. The policy is untouched, so the next version asks
+      // again -- which is what "Download now" means rather than "and every
+      // future one too", the option immediately above it.
       startDownloadWhenIdle();
     } else {
-      prefsStore.set(UPDATE_MODE_KEY, 'manual');
+      // Not this one. Also policy-free: the next version is still offered.
       prefsStore.set(SKIPPED_VERSION_KEY, version);
     }
   }).catch(function () {});
@@ -397,14 +404,13 @@ function onUpdateAvailable(info) {
     return;
   }
 
+  // 'manual' is the old name for 'ask', kept so an existing preference still
+  // means what the user chose.
   var mode = prefsStore.get(UPDATE_MODE_KEY);
-  if (!mode) {
-    askAboutUpdates(version);
-  } else if (mode === 'auto') {
+  if (mode === 'auto') {
     startDownloadWhenIdle();
   } else {
-    // Manual: they still hear about every release, they just decide when.
-    sendToMain('update-offer', version);
+    askAboutUpdates(version);
   }
 }
 
@@ -879,16 +885,15 @@ app.on("ready", function() {
             type: 'question',
             title: 'Updates',
             message: 'How should updates be downloaded?',
-            detail: 'Currently: ' + (mode === 'auto' ? 'automatically' :
-                                     mode === 'manual' ? 'ask me each time' : 'not chosen yet') +
+            detail: 'Currently: ' + (mode === 'auto' ? 'automatically' : 'asking about each version') +
                     '.\n\nUpdates are around 110 MB and always install when you quit, never mid-session.',
-            buttons: ['Download automatically', 'Ask me each time', 'Cancel'],
+            buttons: ['Download automatically', 'Ask me about each version', 'Cancel'],
             defaultId: 0,
             cancelId: 2,
             noLink: true
           }).then(function (res) {
             if (res.response === 0) { prefsStore.set(UPDATE_MODE_KEY, 'auto'); }
-            else if (res.response === 1) { prefsStore.set(UPDATE_MODE_KEY, 'manual'); }
+            else if (res.response === 1) { prefsStore.set(UPDATE_MODE_KEY, 'ask'); }
             // Choosing again clears a previous skip -- they are re-engaging.
             if (res.response !== 2) { prefsStore.delete(SKIPPED_VERSION_KEY); }
           }).catch(function () {});

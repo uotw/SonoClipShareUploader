@@ -897,21 +897,6 @@ $('#updatelink').click(function () {
 	shell.openExternal(DOWNLOAD_PAGE);
 });
 
-// AVAILABLE, BUT NOT FETCHED. The user chose "ask me each time", so nothing has
-// been downloaded -- this offers it. Downloads are ~110MB and this app's users
-// are often on connections where that would fight the study they are uploading,
-// which is the whole reason the choice exists.
-ipcRenderer.on('update-offer', function (event, newVersion) {
-	updaterOwnsBanner = true;
-	$('#updatetext').text('Version ' + newVersion + ' is available.');
-	$('#updatelink').text('Download').show().off('click').on('click', function () {
-		$('#updatetext').text('Downloading version ' + newVersion + '…');
-		$('#updatelink').hide();
-		ipcRenderer.send('download-update');
-	});
-	$('#updatebanner').fadeIn();
-});
-
 // The update is on disk now. The message says WHEN it lands rather than
 // offering a restart button, because this app can be halfway through
 // de-identifying and uploading a study and no update is worth interrupting
